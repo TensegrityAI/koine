@@ -1,0 +1,6 @@
+[files]
+extend-exclude = ["_archive/", "target/", "Cargo.lock"]
+
+[default.extend-words]
+# Project vocabulary
+koine = "koine"

@@ -1,0 +1,16 @@
+[package]
+name = "koine-http"
+description = "Koiné control plane driving adapter: REST API with `OpenAPI`, serves the embedded dashboard."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+koine-domain = { version = "0.1.0", path = "../koine-domain" }
+koine-application = { version = "0.1.0", path = "../koine-application" }
+
+[lints]
+workspace = true

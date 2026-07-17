@@ -1,1 +1,5 @@
 _archive/
+.superpowers/
+target/
+**/*.rs.bk
+.env

@@ -1,0 +1,20 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      glob: "*.rs"
+      run: cargo fmt --all --check
+    typos:
+      run: typos
+
+commit-msg:
+  commands:
+    conventional:
+      run: scripts/check-commit-message.sh {1}
+
+pre-push:
+  commands:
+    clippy:
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    test:
+      run: cargo test --workspace

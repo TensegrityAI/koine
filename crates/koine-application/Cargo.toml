@@ -1,0 +1,15 @@
+[package]
+name = "koine-application"
+description = "Koiné application layer: use cases and driven ports (`EventStore`, `OutboxRelay`, `ProjectionStore`, `LeaseManager`, `Clock`, `IdGenerator`)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+koine-domain = { version = "0.1.0", path = "../koine-domain" }
+
+[lints]
+workspace = true
