@@ -9,7 +9,11 @@
 ## Candidate items
 
 1. **Domain value objects & identifiers** — `JobId`, `QueueName`, `LeaseId`,
-   `Attempt`; validation invariants. *(ring 1)*
+   `Attempt`; validation invariants. `Queue` starts as configuration + value
+   object here; it grows into the full aggregate spec §2 names only when
+   per-queue policies demand it (recorded disposition, roadmap review
+   2026-07-17). `WorkerRegistration` is deferred to phase 2, where workers
+   first connect (same disposition). *(ring 1)*
 2. **`JobEvent` taxonomy v1** — the full spec §3 set including reserved
    durable-execution kinds; every event carries `correlation_id`,
    `causation_id`, W3C traceparent. Serialization schema decided here
@@ -21,7 +25,10 @@
    function of (attempt, policy, seed); park on exhaustion. *(ring 1)*
 5. **Ports** — `EventStore` (append w/ optimistic concurrency, read stream),
    `OutboxRelay`, `ProjectionStore`, `LeaseManager`, `Clock`, `IdGenerator`;
-   signatures generic over aggregate/event (the kineticrs lesson). *(compile)*
+   signatures generic over aggregate/event (the kineticrs lesson).
+   Snapshots (spec §2) are deferred until phase-2 benchmarks show fold cost —
+   but the `EventStore` port shape must not preclude adding them (recorded
+   disposition, roadmap review 2026-07-17). *(compile)*
 6. **Use cases** — `EnqueueJob`, `LeaseNextJob`, `AckJob`, `FailJob` (retry
    or park), `ExtendLease` (heartbeat), `CancelJob`, `SweepExpiredLeases`;
    late-ack conflict event path. *(ring 2 against store-memory)*

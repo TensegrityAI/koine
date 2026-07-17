@@ -29,21 +29,26 @@
    streams don't poll hot; measured fallback polling interval.
 5. **Worker auth v1** — ADR: minimal credible scheme (per-worker token +
    TLS guidance); full OAuth/OIDC is out of scope until a real need.
-6. **Python SDK (minimal)** — generated client + thin idiomatic layer:
+   *Origin: roadmap review 2026-07-17 — new scope beyond the spec (which
+   specifies auth only for MCP); maintainer ratification pending.*
+6. **`WorkerRegistration`** — the spec §2 domain concept lands here, where
+   workers first connect: registration/identity events feeding worker
+   visibility (disposition from phase-1 epic).
+7. **Python SDK (minimal)** — generated client + thin idiomatic layer:
    worker loop, handler registration, heartbeat thread, graceful shutdown,
    structured failure reporting (`sdks/python/`).
-7. **Conformance suite** — language-agnostic harness: spawns broker
+8. **Conformance suite** — language-agnostic harness: spawns broker
    (testcontainers), drives any SDK through fetch/ack/fail/heartbeat/crash
    scenarios derived from the TLA+ properties; Python SDK is the first to
    pass. *(ring 4)*
-8. **Crash-recovery demo** — scripted: kill the worker mid-job, watch lease
+9. **Crash-recovery demo** — scripted: kill the worker mid-job, watch lease
    expiry → retry → success; this is the phase's end-to-end product exercise.
-9. **Benchmarks (baseline)** — enqueue/dispatch throughput + latency on the
+10. **Benchmarks (baseline)** — enqueue/dispatch throughput + latency on the
    SKIP LOCKED path; recorded in the wiki, not marketed.
-10. **crates.io name reservation** — publish 0.1.x with real (if minimal)
+11. **crates.io name reservation** — publish 0.1.x with real (if minimal)
     content, per deferred decision; requires backlog item
     `manifest-cleanup-workspace-deps` first.
-11. **Wiki pages** — `koine-proto`, `koine-grpc`, `data-plane.md`,
+12. **Wiki pages** — `koine-proto`, `koine-grpc`, `data-plane.md`,
     `formal-models.md`. *(DoD)*
 
 ## Dependencies
@@ -56,6 +61,10 @@
 
 - Streaming gRPC + lease lifecycle has subtle cancellation paths — the TLA+
   model and conformance suite exist precisely to cage this.
+- The model's subject matter (lease/expiry/late-ack) is partially implemented
+  in phase 1 — a TLC counterexample here back-propagates as a phase-1
+  fidelity finding, exactly like phase 5's schema clause. Mitigation: draft
+  the model skeleton during phase 1's state-machine work so the two co-evolve.
 - SDK ergonomics define the polyglot promise's first impression — review the
   Python API with faktory-tools experience before freezing.
 

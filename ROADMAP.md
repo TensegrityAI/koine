@@ -14,7 +14,7 @@ phase 1.
 | Phase | Delivers | Proves (exit criterion) |
 | --- | --- | --- |
 | **0 — Foundations** ✅ | 11-crate workspace, compiled hexagonal boundaries, AOL governance, CI | Full CI green on first push |
-| **1 — Event-sourced core** | `Job` domain + event taxonomy, ports, Postgres + in-memory stores, transactional outbox, dispatch projection; enqueue→lease→ack/fail→retry→park via use cases | All test rings green; projections replay from zero to identical state |
+| **1 — Event-sourced core** | `Job` domain + event taxonomy, ports, Postgres + in-memory stores, transactional outbox, dispatch projection; enqueue→lease→ack/fail→retry→park via use cases | Test rings 1–3 green (ring 4 arrives with phase 2); projections replay from zero to identical state |
 | **2 — Data plane** | **TLA+ model of the lease/delivery protocol**, `koine-proto` v1, gRPC server, leases/heartbeats end-to-end, minimal Python SDK, conformance suite | A real Python worker processes jobs with demonstrable crash recovery; conformance suite passes; TLC verifies the stated protocol properties |
 | **3 — Control plane + dashboard v0** | REST + OpenAPI, `koine` CLI (`koine trace`), full observability (OTel + Prometheus), Vite/React/d3 dashboard embedded via rust-embed | OTel traces visible producer→worker cross-language; dashboard live over SSE from a single binary |
 | **4 — Agentic** | MCP adapter (enqueue, inspect, operate), rich history projections, dashboard v1 (d3 causal trace graph) | An agent enqueues, inspects history, and operates the broker via MCP |
@@ -42,8 +42,12 @@ phase 1.
 ## Beyond phase 5 (horizon, unordered)
 
 DAG workflows and batches · additional SDKs (Go, Node, Java) · HA/clustering ·
-migration tooling from Faktory/Sidekiq · mdBook docs site · action-pinning and
-supply-chain hardening follow-ups (see `.apptlas/backlog/todo/`).
+migration tooling from Faktory/Sidekiq · mdBook docs site (go/no-go decided
+inside phase 3, not deferred here).
+
+Near-term, phase-independent: the CI supply-chain items in
+`.apptlas/backlog/todo/` (action pinning, typos version policy) can land
+whenever convenient.
 
 ## How phases run
 
