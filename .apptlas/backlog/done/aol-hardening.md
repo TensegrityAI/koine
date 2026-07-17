@@ -37,8 +37,19 @@
 
 ## Evidence (filled at close)
 
-- `typos` + `npx markdownlint-cli2` + `make ci`: green (see commit gate output)
-- Independent review: see review verdicts appended below
+- `typos` + `make md` (markdownlint) + `make ci`: green (see commit gate output)
+- Independent review (2026-07-17, fresh-context reviewer): **spec compliance ✅**
+  (AC1–AC6 verified; AC7 local checks reproduced by reviewer, CI-on-main
+  verified post-merge) · **quality: Approved** with 2 Important + 2 Minor
+  findings, all four fixed pre-merge and re-reviewed:
+  - I1: docs claimed markdownlint enforcement that wasn't wired → `make md`
+    target + CI `markdownlint` job added; scope exemption for
+    `docs/superpowers/` (immutable artifacts) written into docs-style
+    instructions
+  - I2: this item reached `done/` without recorded verdicts → this section
+  - M1: disposition vocabulary aligned (DoD item 5 + template now include
+    "recorded maintainer decision")
+  - M2: overview crate table now phase-marks every row
 - CI on main: run following the merge commit (Actions)
 
 ## Spec-fidelity statement (filled at close)

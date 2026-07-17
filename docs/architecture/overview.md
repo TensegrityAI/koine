@@ -44,19 +44,19 @@ The hexagon is compiled: boundaries are crate boundaries, and the dependency
 graph forbids illegal imports (ADR 0003). Direction: domain ← application ←
 adapters ← server.
 
-| Crate | Layer | Role |
+| Crate | Layer | Role (all stubs today; behavior arrives at the phase shown) |
 | --- | --- | --- |
-| `koine-domain` | Domain | Aggregates, events, state machines. No async, no I/O |
-| `koine-application` | Application | Use cases + driven ports (`EventStore`, `OutboxRelay`, `ProjectionStore`, `LeaseManager`, `Clock`, `IdGenerator`) |
-| `koine-proto` | Contract | Versioned protobuf wire contract (standalone) |
-| `koine-store-postgres` | Driven | Event store, transactional outbox, projections (planned — phase 1) |
-| `koine-store-memory` | Driven | Full in-memory port implementations for tests (planned — phase 1) |
-| `koine-grpc` | Driving | Data plane adapter (planned — phase 2) |
-| `koine-http` | Driving | Control plane REST + embedded dashboard (planned — phase 3) |
-| `koine-mcp` | Driving | Agent control plane (planned — phase 4) |
-| `koine-observability` | Infra | OTel/Prometheus init (planned — phase 3) |
-| `koine-server` | Binary | Composition root |
-| `koine-cli` | Binary | Operator CLI (planned — phase 3) |
+| `koine-domain` | Domain | Aggregates, events, state machines. No async, no I/O (phase 1) |
+| `koine-application` | Application | Use cases + driven ports (`EventStore`, `OutboxRelay`, `ProjectionStore`, `LeaseManager`, `Clock`, `IdGenerator`) (phase 1) |
+| `koine-store-postgres` | Driven | Event store, transactional outbox, projections (phase 1) |
+| `koine-store-memory` | Driven | Full in-memory port implementations for tests (phase 1) |
+| `koine-proto` | Contract | Versioned protobuf wire contract, standalone (phase 2) |
+| `koine-grpc` | Driving | Data plane adapter (phase 2) |
+| `koine-http` | Driving | Control plane REST + embedded dashboard (phase 3) |
+| `koine-observability` | Infra | OTel/Prometheus init (phase 3) |
+| `koine-cli` | Binary | Operator CLI (phase 3) |
+| `koine-mcp` | Driving | Agent control plane (phase 4) |
+| `koine-server` | Binary | Composition root — grows with each phase (from phase 1) |
 
 ## Why: the load-bearing decisions
 

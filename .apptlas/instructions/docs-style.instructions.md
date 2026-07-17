@@ -11,5 +11,8 @@
   (`ADR 0006`), never restated.
 - Reference code as `crate-name` / `path/to/file.rs` so readers can navigate
   from prose to code.
-- Everything passes `typos` and `markdownlint` (config at repo root); run
-  `make ci` before pushing docs-only changes too.
+- Everything passes `typos` and `markdownlint` (config at repo root; `make md`
+  runs the exact CI check); run `make ci` before pushing docs-only changes too.
+- **Scope exemption:** `docs/superpowers/` (specs, plans) holds immutable
+  execution artifacts — the same append-only discipline as ADRs and the event
+  log. They are excluded from markdownlint and never edited for cosmetics.

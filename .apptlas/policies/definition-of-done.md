@@ -27,7 +27,8 @@ from memory afterwards.
    current page is not done.
 5. **Spec-fidelity statement**: the item file names the spec sections / ADRs
    this work implements, and states either "faithful" or lists each divergence
-   with its disposition (finding filed, or ADR amended). Writing the wiki page
+   with its disposition (finding filed, ADR amended, or recorded maintainer
+   decision). Writing the wiki page
    is the reflection mechanism — you cannot document honestly what silently
    drifted. **A divergence absorbed silently is a DoD failure**, scored by
    [../rubrics/spec-fidelity-rubric.md](../rubrics/spec-fidelity-rubric.md).

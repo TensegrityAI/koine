@@ -29,4 +29,5 @@
 ## Spec-fidelity statement (filled at close)
 
 <!-- "Faithful" — or each divergence with its disposition
-     (finding filed / ADR NNNN amended). Required by DoD item 5. -->
+     (finding filed / ADR NNNN amended / recorded maintainer decision).
+     Required by DoD item 5. -->
