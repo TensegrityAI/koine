@@ -70,7 +70,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"
 license = "Apache-2.0"
-repository = "https://github.com/kaelmans/koine"
+repository = "https://github.com/TensegrityAI/koine"
 authors = ["Marcos Saez <marcos.asp989@gmail.com>"]
 
 [workspace.lints.rust]
@@ -446,7 +446,7 @@ queue isolation are the areas of highest interest.
 - [ ] **Step 6: Write `CODEOWNERS`**
 
 ```text
-* @kaelmans
+* @UnassignedByte
 ```
 
 - [ ] **Step 7: Verify prose passes checks**
@@ -964,24 +964,21 @@ git commit -m "ci: add GitHub Actions pipeline (fmt, clippy, test, docs, deny, t
 - Consumes: everything above.
 - Produces: green CI on GitHub = phase 0 exit criterion met; phase log entry the phase 1 plan will reference.
 
-- [ ] **Step 1: Create the GitHub repository and push** ⚠️ *outward-facing — confirm with Marcos before running; requires `gh auth login` or manual repo creation at github.com/new*
+- [ ] **Step 1: Push to the existing GitHub repository** (repo already created by Marcos, 2026-07-17)
 
 ```bash
-gh repo create kaelmans/koine --public --source . --push \
-  --description "Koiné — event-sourced, language-agnostic job broker. The common language between languages for background work."
+git remote add origin git@github.com:TensegrityAI/koine.git
+git push -u origin main
 ```
-
-(If `gh` is unavailable: create the repo in the GitHub UI, then
-`git remote add origin git@github.com:kaelmans/koine.git && git push -u origin main`.)
 
 - [ ] **Step 2: Verify CI is green on the first push**
 
-Run: `gh run watch --exit-status` (or check the Actions tab).
+Run: check the Actions tab at https://github.com/TensegrityAI/koine/actions (or `gh run watch --exit-status` if `gh` is installed and authenticated).
 Expected: all 7 jobs pass. **This is the phase 0 exit criterion.** If any job
 fails, fix forward (the local `make ci` mirror should have caught everything
 except action-environment differences).
 
-- [ ] **Step 3: Reserve the crates.io names** ⚠️ *outward-facing — confirm with Marcos; requires `cargo login`. Publishing 0.1.0 stubs reserves the names (crates.io has no other reservation mechanism); `koine` verified free 2026-07-16*
+- [ ] **Step 3: Reserve the crates.io names — SKIPPED by decision 2026-07-17 (reserve in phase 2 when crates have substance; squatting risk accepted).** Original step kept for reference:
 
 ```bash
 for c in koine-domain koine-application koine-proto koine-store-postgres \
