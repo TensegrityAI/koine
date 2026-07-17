@@ -1,0 +1,4 @@
+default: true
+MD013: false   # line length — tables and URLs make this noise
+MD033: false   # inline HTML — needed for diagrams/badges
+MD041: false   # first-line heading — ADR frontmatter breaks it

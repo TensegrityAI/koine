@@ -9,7 +9,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-koine-domain = { path = "../koine-domain" }
+koine-domain = { version = "0.1.0", path = "../koine-domain" }
 
 [lints]
 workspace = true
