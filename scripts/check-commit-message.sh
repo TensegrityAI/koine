@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Conventional Commits gate — no external dependencies (see AGENTS.md §3).
+# Conventional Commits gate — no external dependencies (plan Global Constraints; spec §4).
 set -euo pipefail
 
 msg_file="${1:?usage: check-commit-message.sh <commit-msg-file>}"

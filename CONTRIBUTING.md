@@ -29,5 +29,5 @@ make ci                          # run everything CI runs
 ## Pull requests
 
 - Keep PRs scoped to one concern.
-- CI must be green: fmt, clippy (`-D warnings`), tests, cargo-deny, typos, gitleaks.
+- CI must be green: fmt, clippy (`-D warnings`), tests, docs build, cargo-deny, typos, gitleaks.
 - New public items need doc comments (`missing_docs` is enforced).

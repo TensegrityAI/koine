@@ -65,5 +65,6 @@ jobs:
           GITLEAKS_VERSION: "8.24.3"
         run: |
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tgz
+          echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  gitleaks.tgz" | sha256sum -c
           tar -xzf gitleaks.tgz gitleaks
           ./gitleaks detect --source . --redact --verbose
