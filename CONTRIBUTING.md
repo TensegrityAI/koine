@@ -23,7 +23,7 @@ Thank you for considering a contribution!
 rustup show                      # picks up rust-toolchain.toml
 cargo install typos-cli lefthook --locked
 lefthook install                 # git hooks: fmt/typos pre-commit, clippy/test pre-push
-make ci                          # run everything CI runs
+make ci                          # everything CI runs except gitleaks (CI-only)
 ```
 
 ## Pull requests

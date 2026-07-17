@@ -17,3 +17,4 @@ Active plan: `docs/superpowers/plans/2026-07-17-koine-phase-0-foundations.md`.
 
 - 2026-07-16 — Design spec approved and committed.
 - 2026-07-17 — Phase 0 plan written; execution started.
+- 2026-07-17 — Phase 0 complete: CI run #1 green on first push (all 7 jobs). Next: roadmap + plans for phases 1-5, then phase 1 (event-sourced core).
