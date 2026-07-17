@@ -15,8 +15,13 @@ reversible changes; no fake completeness; boundaries enforced by the compiler.
 2. `CLAUDE.md` — living context and current phase
 3. `docs/superpowers/specs/2026-07-16-koine-design.md` — the approved design
 4. `docs/adr/INDEX.md` + ADRs relevant to the task
-5. `.apptlas/backlog/` — active work items
-6. The relevant code, manifests, migrations, proto files
+5. `.apptlas/policies/` — the gates your work must pass: definition-of-ready
+   before starting, definition-of-done before closing, plus review/testing/
+   documentation policies. `.apptlas/instructions/` for rules scoped to the
+   files you touch.
+6. `.apptlas/backlog/` — active work items
+7. `docs/architecture/` — the wiki page(s) for the modules you touch
+8. The relevant code, manifests, migrations, proto files
 
 ## 2. Truth hierarchy
 
@@ -34,14 +39,20 @@ architectural debt: report it, do not copy it as precedent.
 - **No fake completeness.** No `todo!()`, `unimplemented!()`, or docs claiming
   unwired functionality.
 - **Conventional Commits**, enforced by hooks. CI green before merge.
-- **Document non-obvious decisions** as ADRs (MADR format, `docs/adr/`).
+- **Document non-obvious decisions** as ADRs (MADR format, `docs/adr/`;
+  triggers and process in `.apptlas/workflows/adr-workflow.md`).
+- **The lifecycle gates are not optional.** Work starts only through the
+  Definition of Ready and closes only through the Definition of Done —
+  including the architecture-wiki update and the spec-fidelity statement
+  (`.apptlas/policies/`).
 
 ## 4. Layout
 
 - `crates/` — the 11-crate workspace (see design spec §2 for the crate map)
 - `sdks/` — worker SDKs (phase 2+), `dashboard/` — embedded SPA (phase 3+)
-- `.apptlas/` — agent operating layer: instructions, backlog (todo/ongoing/done),
-  epics, policies, workflows, incidents, findings, skills
+- `.apptlas/` — agent operating layer: policies, rubrics, workflows,
+  instructions, backlog (todo/ongoing/done), epics, incidents, findings, skills
+- `docs/architecture/` — the living wiki (what/how/why per module, DoD-enforced)
 - `docs/adr/` — architecture decision records; `docs/superpowers/` — specs & plans
 
 ## 5. Commands

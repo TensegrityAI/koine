@@ -1,1 +1,1 @@
-# instructions/ — scoped rules applied by file pattern. Empty until phase 1 adds the first rules
+# instructions/ — scoped rules applied by file pattern: rust-style, event-sourcing, testing, docs-style
