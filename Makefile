@@ -1,4 +1,4 @@
-.PHONY: build test fmt fmt-check lint doc deny typos ci hooks
+.PHONY: build test fmt fmt-check lint doc deny typos md ci hooks
 
 build:
 	cargo build --workspace
@@ -24,7 +24,12 @@ deny:
 typos:
 	typos
 
-ci: fmt-check lint test doc deny typos
+# Living docs only: docs/superpowers/ holds immutable execution artifacts
+# (specs, plans) exempt from lint churn — see docs-style instructions.
+md:
+	npx --yes markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
+
+ci: fmt-check lint test doc deny typos md
 	@echo "✓ all CI checks green"
 
 hooks:

@@ -1,1 +1,1 @@
-# workflows/ — repeatable operating procedures. Empty until phase 1
+# workflows/ — repeatable operating procedures: task-lifecycle, adr-workflow

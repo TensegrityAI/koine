@@ -54,6 +54,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: crate-ci/typos@v1
 
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx --yes markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:

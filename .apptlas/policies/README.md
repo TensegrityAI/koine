@@ -1,1 +1,1 @@
-# policies/ — standing rules (release, review, security). Empty until phase 1 adds to the DoD policy
+# policies/ — standing rules: definition-of-ready, definition-of-done, review, testing, documentation
