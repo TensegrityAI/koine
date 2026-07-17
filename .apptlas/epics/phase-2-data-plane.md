@@ -44,7 +44,7 @@
 9. **Crash-recovery demo** — scripted: kill the worker mid-job, watch lease
    expiry → retry → success; this is the phase's end-to-end product exercise.
 10. **Benchmarks (baseline)** — enqueue/dispatch throughput + latency on the
-   SKIP LOCKED path; recorded in the wiki, not marketed.
+    SKIP LOCKED path; recorded in the wiki, not marketed.
 11. **crates.io name reservation** — publish 0.1.x with real (if minimal)
     content, per deferred decision; requires backlog item
     `manifest-cleanup-workspace-deps` first.

@@ -34,7 +34,9 @@
    `./koine serve` = broker + UI; build pipeline decision (dashboard build
    artifact committed vs built in CI) via ADR.
 9. **auth v1 for control plane** — ADR: minimal credible (API key headers),
-   consistent with the phase-2 worker auth decision.
+   consistent with the phase-2 worker auth decision. *Origin: same as the
+   phase-2 worker auth item — new scope beyond the spec, maintainer
+   ratification pending.*
 10. **mdBook decision** — migrate `docs/architecture/` to a docs site now
     that pages exist in quantity, or defer; ADR either way.
 11. **Wiki pages** — `koine-http`, `koine-cli`, `koine-observability`,

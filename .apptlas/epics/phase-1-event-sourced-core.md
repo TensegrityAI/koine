@@ -2,9 +2,9 @@
 
 - **State:** next up
 - **Implements:** design spec §3 (event model, delivery semantics, hot path), §6 phase 1
-- **Exit criteria:** all test rings green; enqueue→lease→ack/fail→retry→park
-  works through use cases against both stores; every projection replays from
-  event zero to an identical state.
+- **Exit criteria:** test rings 1–3 green (ring 4 arrives with phase 2);
+  enqueue→lease→ack/fail→retry→park works through use cases against both
+  stores; every projection replays from event zero to an identical state.
 
 ## Candidate items
 
