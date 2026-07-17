@@ -1,0 +1,22 @@
+[package]
+name = "koine-server"
+description = "Koiné server binary: composition root wiring adapters to the application core."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+koine-domain = { path = "../koine-domain" }
+koine-application = { path = "../koine-application" }
+koine-store-postgres = { path = "../koine-store-postgres" }
+koine-store-memory = { path = "../koine-store-memory" }
+koine-grpc = { path = "../koine-grpc" }
+koine-http = { path = "../koine-http" }
+koine-mcp = { path = "../koine-mcp" }
+koine-observability = { path = "../koine-observability" }
+
+[lints]
+workspace = true

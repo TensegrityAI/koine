@@ -1,0 +1,16 @@
+[package]
+name = "koine-grpc"
+description = "Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats, checkpoints over `gRPC`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+koine-domain = { path = "../koine-domain" }
+koine-application = { path = "../koine-application" }
+
+[lints]
+workspace = true
