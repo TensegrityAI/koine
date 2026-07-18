@@ -114,24 +114,28 @@ impl<G: IdGenerator, C: Clock> Dispatcher for InMemoryDispatcher<G, C> {
         ttl: Duration,
     ) -> impl Future<Output = Result<bool, DispatchError>> + Send {
         let now = self.clock.now();
-        let deadline = now + chrono::TimeDelta::from_std(ttl).unwrap_or(chrono::TimeDelta::MAX);
-        let result = self
-            .store
-            .locked(|inner| {
-                for entry in inner.index.values_mut() {
-                    if let Some(state) = entry.lease.as_mut()
-                        && state.lease == lease
-                    {
-                        if state.expires_at <= now {
-                            return Ok(false);
+        let delta_result = chrono::TimeDelta::from_std(ttl);
+        let result = if let Ok(delta) = delta_result {
+            let deadline = now + delta;
+            self.store
+                .locked(|inner| {
+                    for entry in inner.index.values_mut() {
+                        if let Some(state) = entry.lease.as_mut()
+                            && state.lease == lease
+                        {
+                            if state.expires_at <= now {
+                                return Ok(false);
+                            }
+                            state.expires_at = deadline;
+                            return Ok(true);
                         }
-                        state.expires_at = deadline;
-                        return Ok(true);
                     }
-                }
-                Ok(false)
-            })
-            .map_err(DispatchError::from);
+                    Ok(false)
+                })
+                .map_err(DispatchError::from)
+        } else {
+            Err(DispatchError::Backend("ttl out of range".into()))
+        };
         async move { result }
     }
 
@@ -338,5 +342,23 @@ mod tests {
                 .expect("hb"),
             "expired lease refuses extension"
         );
+    }
+
+    #[tokio::test]
+    async fn extend_lease_rejects_unrepresentable_ttl() {
+        let f = fixture();
+        enqueue(&f, 0, None).await;
+        let claimed = f
+            .dispatcher
+            .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+            .await
+            .expect("claim")
+            .expect("job");
+        let err = f
+            .dispatcher
+            .extend_lease(claimed.lease, Duration::MAX)
+            .await
+            .expect_err("must reject");
+        assert!(matches!(err, koine_application::DispatchError::Backend(_)));
     }
 }

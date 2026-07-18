@@ -359,4 +359,40 @@ mod tests {
             koine_application::EventStoreError::StreamNotFound(_)
         ));
     }
+
+    #[tokio::test]
+    async fn fold_rejected_append_on_existing_stream_keeps_prior_events() {
+        use koine_application::ports::IdGenerator;
+        let store = InMemoryEventStore::new();
+        let ids = SeededIds::new(6);
+        let clock = clock();
+        let (stream, envelopes) = enqueue_envelopes(&ids, &clock);
+        store
+            .append(stream, 0, envelopes.clone())
+            .await
+            .expect("enqueue");
+        // version-sequential but illegal from Pending: `started` needs a lease
+        let bad = koine_application::wrap_events(
+            &ids,
+            &clock,
+            stream,
+            1,
+            ids.correlation_id(),
+            None,
+            None,
+            vec![koine_domain::JobEvent::Started {
+                worker: koine_domain::WorkerId::new("w").expect("w"),
+            }],
+        );
+        let err = store
+            .append(stream, 1, bad)
+            .await
+            .expect_err("must not fold");
+        assert!(matches!(
+            err,
+            koine_application::EventStoreError::Backend(_)
+        ));
+        let loaded = store.load(stream).await.expect("prior events survive");
+        assert_eq!(loaded, envelopes, "bad batch discarded, stream intact");
+    }
 }

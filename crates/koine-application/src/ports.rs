@@ -131,6 +131,9 @@ pub trait IdGenerator: Send + Sync {
     fn lease_id(&self) -> LeaseId;
     /// New correlation id.
     fn correlation_id(&self) -> CorrelationId;
-    /// Seed for deterministic retry jitter.
+    /// Seed for deterministic retry jitter. Implementations MUST return
+    /// high-entropy values (e.g. from the id source); small sequential
+    /// counters would correlate delays across jobs (`seed ^ attempt`
+    /// collisions).
     fn jitter_seed(&self) -> u64;
 }

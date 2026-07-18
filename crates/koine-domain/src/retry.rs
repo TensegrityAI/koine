@@ -138,4 +138,16 @@ mod tests {
             panic!("attempt 1 of 20 must retry");
         }
     }
+
+    #[test]
+    fn different_attempts_can_differ_for_fixed_seed() {
+        let p = RetryPolicy::default();
+        let outcomes: std::collections::HashSet<_> = (1..16u32)
+            .map(|attempt| format!("{:?}", p.decide(attempt, 42)))
+            .collect();
+        assert!(
+            outcomes.len() > 4,
+            "fixed-seed delays must vary across attempts"
+        );
+    }
 }
