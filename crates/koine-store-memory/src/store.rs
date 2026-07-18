@@ -72,9 +72,11 @@ impl InMemoryEventStore {
         expected_version: u64,
         envelopes: Vec<EventEnvelope>,
     ) -> Result<(), EventStoreError> {
-        let events = inner.streams.entry(stream).or_default();
-        let current = u64::try_from(events.len())
+        // Compute current length WITHOUT inserting
+        let current = u64::try_from(inner.streams.get(&stream).map_or(0, Vec::len))
             .map_err(|_| EventStoreError::Backend("stream too long".into()))?;
+
+        // Run validations BEFORE touching the map
         if current != expected_version {
             return Err(EventStoreError::VersionConflict {
                 stream,
@@ -90,6 +92,9 @@ impl InMemoryEventStore {
                 )));
             }
         }
+
+        // Only on success: extend and project
+        let events = inner.streams.entry(stream).or_default();
         events.extend(envelopes);
         let folded = Job::from_events(events)
             .map_err(|e| EventStoreError::Backend(format!("stream no longer folds: {e}")))?;
@@ -299,5 +304,28 @@ mod tests {
             !inner.index.contains_key(&stream),
             "terminal ⇒ undispatchable"
         );
+    }
+
+    #[tokio::test]
+    async fn failed_append_leaves_no_phantom_stream() {
+        let store = InMemoryEventStore::new();
+        let ids = SeededIds::new(4);
+        let clock = clock();
+        let (stream, envelopes) = enqueue_envelopes(&ids, &clock);
+        // wrong expected_version against a never-seen stream must reject...
+        let err = store
+            .append(stream, 5, envelopes)
+            .await
+            .expect_err("conflict");
+        assert!(matches!(
+            err,
+            koine_application::EventStoreError::VersionConflict { expected: 5, .. }
+        ));
+        // ...and must NOT materialize an empty stream
+        let err = store.load(stream).await.expect_err("no phantom stream");
+        assert!(matches!(
+            err,
+            koine_application::EventStoreError::StreamNotFound(_)
+        ));
     }
 }
