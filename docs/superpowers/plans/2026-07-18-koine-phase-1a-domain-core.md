@@ -1435,6 +1435,9 @@ impl Job {
                 | S::AwaitingApproval { .. }),
                 E::SignalReceived { .. },
             ) => state,
+            // Stall-threshold crossings are informational records (spec §3);
+            // produced by phase 2's heartbeat mechanics.
+            (state @ (S::Leased { .. } | S::Running { .. }), E::Stalled) => state,
             (S::Running { .. }, E::ApprovalRequested { key }) => {
                 S::AwaitingApproval { key: key.clone() }
             }
@@ -3984,7 +3987,7 @@ Each page follows the documentation-policy template (What / How / Why / Boundari
 - `koine-domain.md` — What: pure event-sourced core (`Job`, `JobEvent`, `RetryPolicy`). How: state = fold (`Job::from_events`/`apply`); commands validate and emit events; transition table in `job.rs`; deterministic jitter (`retry.rs`, SplitMix64); proptest suite `state_machine_props.rs` guarantees no reachable illegal state. Why: ADR 0004 (event log as truth), ADR 0010 (encoding/identity). Boundaries: depends on nothing internal; serde/uuid/chrono/thiserror only (pure data — ADR 0010); no clocks, no randomness (both are ports).
 - `koine-application.md` — What: driven ports (`EventStore`, `Dispatcher`, `Clock`, `IdGenerator`) and use cases (`enqueue`, `worker_ack`, `cancel`, `lease`, `heartbeat`, `sweep`). How: native async-fn-in-trait returning `impl Future + Send`; static dispatch; `wrap_events` builds sequential envelopes; late acks become `late_ack_conflict` records. Why: ADR 0006/0011 (composite-operation contracts live in adapters; use cases stay thin). Boundaries: → domain only; `OutboxRelay`/`ProjectionStore` ports arrive with 1B (planned — phase 1B).
 - `koine-store-memory.md` — What: complete in-memory port implementations proving port neutrality + hosting ring-2 tests. How: one mutex = the "transaction"; `append_locked` re-derives the dispatch entry from folded state (rebuildable projection); `InMemoryDispatcher` claims under the same lock; `FixedClock`/`SeededIds` test doubles. Why: ADR 0005 (in-memory keeps ports honest), ADR 0011. Boundaries: → application + domain; test-oriented, never a production store.
-- `event-model.md` — the taxonomy reference: table of all 18 kinds (kind string, v1-active vs reserved-phase-5, emitted by whom), the state diagram from spec §3, envelope fields, lineage rules (correlation carried from `enqueued`, causation = previous event), additive-evolution rules (ADR 0010).
+- `event-model.md` — the taxonomy reference: table of all 19 kinds (kind string, v1-active vs reserved-phase-5, emitted by whom), the state diagram from spec §3, envelope fields, lineage rules (correlation carried from `enqueued`, causation = previous event), additive-evolution rules (ADR 0010).
 
 Update `docs/architecture/README.md` page table: add the four new pages with status `Current (phase 1A)`; update `overview.md` crate table rows for `koine-domain`, `koine-application`, `koine-store-memory` from "(phase 1)" to real one-liners (e.g. `koine-domain` → "Aggregates, events, state machines. No async, no I/O — see [koine-domain.md](koine-domain.md)").
 
