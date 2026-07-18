@@ -115,6 +115,36 @@ pub trait Dispatcher: Send + Sync {
     ) -> impl Future<Output = Result<Vec<JobId>, DispatchError>> + Send;
 }
 
+/// Errors a sink may return. A failed batch is rolled back and redelivered
+/// on a later relay pass — sinks must be idempotent (at-least-once).
+#[derive(Debug, Error)]
+pub enum SinkError {
+    /// Delivery failed; the batch will be retried.
+    #[error("sink: {0}")]
+    Failed(String),
+}
+
+/// Errors from an outbox relay pass.
+#[derive(Debug, Error)]
+pub enum RelayError {
+    /// The sink rejected the batch (rolled back, will retry).
+    #[error(transparent)]
+    Sink(#[from] SinkError),
+    /// Adapter/backend failure.
+    #[error("backend: {0}")]
+    Backend(String),
+}
+
+/// Consumer of relayed envelopes: read projections (phase 3), logging and
+/// counting sinks today (ADR 0012).
+pub trait EventSink: Send + Sync {
+    /// Processes one ordered batch. Erring rolls the whole batch back.
+    fn deliver(
+        &self,
+        envelopes: &[EventEnvelope],
+    ) -> impl Future<Output = Result<(), SinkError>> + Send;
+}
+
 /// Time source.
 pub trait Clock: Send + Sync {
     /// Current instant.
