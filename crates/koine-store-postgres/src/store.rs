@@ -2,8 +2,6 @@
 //! transaction (ADRs 0006/0011/0012). A failed transaction leaves nothing —
 //! the same contract the in-memory store proves with one mutex hold.
 
-use std::future::Future;
-
 use koine_application::ports::{EventStore, EventStoreError};
 use koine_domain::{EventEnvelope, Job, JobId, JobState};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -206,39 +204,30 @@ pub(crate) async fn project_in_tx(
 }
 
 impl EventStore for PostgresEventStore {
-    #[allow(clippy::manual_async_fn)]
-    fn append(
+    async fn append(
         &self,
         stream: JobId,
         expected_version: u64,
         envelopes: Vec<EventEnvelope>,
-    ) -> impl Future<Output = Result<(), EventStoreError>> + Send {
-        async move {
-            let mut tx = self.pool.begin().await.map_err(db)?;
-            append_in_tx(&mut tx, stream, expected_version, &envelopes).await?;
-            tx.commit().await.map_err(db)
-        }
+    ) -> Result<(), EventStoreError> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        append_in_tx(&mut tx, stream, expected_version, &envelopes).await?;
+        tx.commit().await.map_err(db)
     }
 
-    #[allow(clippy::manual_async_fn)]
-    fn load(
-        &self,
-        stream: JobId,
-    ) -> impl Future<Output = Result<Vec<EventEnvelope>, EventStoreError>> + Send {
-        async move {
-            let rows = sqlx::query(
-                "SELECT stream_id, version, event_id, event_type, schema_version, payload, \
-                 correlation_id, causation_id, traceparent, recorded_at \
-                 FROM event_store.events WHERE stream_id = $1 ORDER BY version",
-            )
-            .bind(stream.as_uuid())
-            .fetch_all(&self.pool)
-            .await
-            .map_err(db)?;
-            if rows.is_empty() {
-                return Err(EventStoreError::StreamNotFound(stream));
-            }
-            rows.iter().map(envelope_from_row).collect()
+    async fn load(&self, stream: JobId) -> Result<Vec<EventEnvelope>, EventStoreError> {
+        let rows = sqlx::query(
+            "SELECT stream_id, version, event_id, event_type, schema_version, payload, \
+             correlation_id, causation_id, traceparent, recorded_at \
+             FROM event_store.events WHERE stream_id = $1 ORDER BY version",
+        )
+        .bind(stream.as_uuid())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(db)?;
+        if rows.is_empty() {
+            return Err(EventStoreError::StreamNotFound(stream));
         }
+        rows.iter().map(envelope_from_row).collect()
     }
 }
