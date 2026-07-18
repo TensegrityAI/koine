@@ -1266,6 +1266,7 @@ dependencies = [
  "koine-observability",
  "koine-store-memory",
  "koine-store-postgres",
+ "serde_json",
  "tokio",
  "uuid",
 ]
