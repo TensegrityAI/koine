@@ -22,4 +22,4 @@ pub mod store;
 
 pub use dispatcher::PostgresDispatcher;
 pub use relay::PostgresOutboxRelay;
-pub use store::PostgresEventStore;
+pub use store::{PostgresEventStore, rebuild_dispatch};

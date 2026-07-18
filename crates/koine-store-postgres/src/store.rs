@@ -203,6 +203,40 @@ pub(crate) async fn project_in_tx(
     Ok(())
 }
 
+/// Rebuilds `dispatch_queue` from the event log: folds every stream in
+/// first-appearance order and re-projects. The projection is derived state
+/// (ADR 0006) — this is both the replay guarantee's proof and an ops tool.
+///
+/// # Errors
+/// Database failure, or a stream that no longer folds (data corruption).
+pub async fn rebuild_dispatch(pool: &PgPool) -> Result<u32, EventStoreError> {
+    let mut tx = pool.begin().await.map_err(db)?;
+    let streams: Vec<(uuid::Uuid,)> = sqlx::query_as(
+        "SELECT stream_id FROM event_store.events \
+         GROUP BY stream_id ORDER BY min(global_seq)",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(db)?;
+    let mut projected = 0u32;
+    for (stream_uuid,) in streams {
+        let stream = JobId::new(stream_uuid);
+        let envelopes = load_in_tx(&mut tx, stream).await?;
+        let job = Job::from_events(&envelopes)
+            .map_err(|e| EventStoreError::Backend(format!("stream {stream}: {e}")))?;
+        let dispatchable = matches!(
+            job.state,
+            JobState::Pending { .. } | JobState::Leased { .. } | JobState::Running { .. }
+        );
+        project_in_tx(&mut tx, &job).await?;
+        if dispatchable {
+            projected += 1;
+        }
+    }
+    tx.commit().await.map_err(db)?;
+    Ok(projected)
+}
+
 impl EventStore for PostgresEventStore {
     async fn append(
         &self,

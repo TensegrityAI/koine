@@ -243,3 +243,54 @@ async fn repeated_crashes_exhaust_into_parked() {
         "parked jobs await repair, not dispatch"
     );
 }
+
+#[tokio::test]
+async fn sweep_surfaces_non_transition_domain_errors() {
+    // A poisoned policy that folds fine but overflows chrono at decision time:
+    // base/max near u64::MAX ms. Enqueue-side validation now blocks this at
+    // the boundary, so construct the stream directly through the store to
+    // simulate pre-validation data (or a future migration gap).
+    use koine_application::ports::IdGenerator;
+    let w = world().await;
+    let stream = w.ids.job_id();
+    let poisoned = RetryPolicy {
+        max_attempts: 3,
+        base_delay: Duration::MAX,
+        max_delay: Duration::MAX,
+    };
+    let event = koine_domain::Job::initial_event(
+        w.queue.clone(),
+        serde_json::json!({}),
+        Priority(0),
+        poisoned,
+        None,
+    );
+    let envs = koine_application::wrap_events(
+        w.ids.as_ref(),
+        w.clock.as_ref(),
+        stream,
+        0,
+        w.ids.correlation_id(),
+        None,
+        None,
+        vec![event],
+    );
+    w.store
+        .append(stream, 0, envs)
+        .await
+        .expect("direct append");
+    w.dispatcher
+        .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("job");
+    w.clock.advance(Duration::from_secs(31));
+    let err = sweeper(&w)
+        .execute()
+        .await
+        .expect_err("InvalidTtl must surface");
+    assert!(matches!(
+        err,
+        koine_application::use_cases::sweep::SweepError::Domain(_)
+    ));
+}
