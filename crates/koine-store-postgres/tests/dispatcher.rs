@@ -133,7 +133,7 @@ async fn respects_not_before_and_lease_expiry() {
     assert!(f.dispatcher.expired(now).await.expect("expired").is_empty());
     assert!(
         f.dispatcher
-            .extend_lease(claimed.lease, ttl)
+            .extend_lease(claimed.lease, Duration::from_mins(1))
             .await
             .expect("hb")
     );

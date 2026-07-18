@@ -108,11 +108,12 @@ impl<G: IdGenerator, C: Clock> Dispatcher for PostgresDispatcher<G, C> {
         let Ok(delta) = chrono::TimeDelta::from_std(ttl) else {
             return Err(DispatchError::Backend("ttl out of range".into()));
         };
+        let deadline = now + delta;
         let updated = sqlx::query(
-            "UPDATE event_store.dispatch_queue SET lease_expires_at = lease_expires_at + $1 \
+            "UPDATE event_store.dispatch_queue SET lease_expires_at = $1 \
              WHERE lease_id = $2 AND lease_expires_at > $3",
         )
-        .bind(delta)
+        .bind(deadline)
         .bind(lease.as_uuid())
         .bind(now)
         .execute(&self.pool)
