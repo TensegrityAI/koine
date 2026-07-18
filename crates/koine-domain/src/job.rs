@@ -444,9 +444,13 @@ impl Job {
             crate::retry::RetryDecision::RetryAfter(delay) => {
                 let delay =
                     chrono::TimeDelta::from_std(delay).map_err(|_| DomainError::InvalidTtl)?;
+                // Check if the addition would overflow; chrono panics on overflow
+                let not_before = now
+                    .checked_add_signed(delay)
+                    .ok_or(DomainError::InvalidTtl)?;
                 JobEvent::RetryScheduled {
                     attempt,
-                    not_before: now + delay,
+                    not_before,
                 }
             }
             crate::retry::RetryDecision::Park => JobEvent::Parked {
