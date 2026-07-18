@@ -1,6 +1,7 @@
 # Epic: Phase 1 — Event-sourced core
 
-- **State:** next up
+- **State:** ongoing — 1A (domain core, rings 1–2) delivered; 1B (Postgres,
+  outbox, ring 3) next
 - **Implements:** design spec §3 (event model, delivery semantics, hot path), §6 phase 1
 - **Exit criteria:** test rings 1–3 green (ring 4 arrives with phase 2);
   enqueue→lease→ack/fail→retry→park works through use cases against both

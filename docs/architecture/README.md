@@ -10,8 +10,12 @@ Done item 4), so this wiki is trustworthy by construction, not by discipline.
 
 | Page | Covers | Status |
 | --- | --- | --- |
-| [overview.md](overview.md) | System shape: planes, crate map, event flow | Current (phase 0: crates are documented stubs) |
-| *(per-crate pages)* | One page per crate with real behavior | Born with the phase that builds each crate — phase 1 starts with `koine-domain`, `koine-application`, the stores |
+| [overview.md](overview.md) | System shape: planes, crate map, event flow | Current (phase 1A: 3 crates real, rest documented stubs) |
+| [koine-domain.md](koine-domain.md) | `Job` aggregate, `JobEvent` taxonomy, `RetryPolicy` | Current (phase 1A) |
+| [koine-application.md](koine-application.md) | Driven ports and use cases | Current (phase 1A) |
+| [koine-store-memory.md](koine-store-memory.md) | In-memory `EventStore`/`Dispatcher` adapters | Current (phase 1A) |
+| [event-model.md](event-model.md) | Full event taxonomy, envelope, lineage rules | Current (phase 1A) |
+| *(remaining per-crate pages)* | One page per crate with real behavior | Born with the phase that builds each crate — phase 1B continues with the stores |
 
 ## How to read this wiki
 
