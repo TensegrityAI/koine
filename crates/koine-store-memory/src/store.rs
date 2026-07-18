@@ -93,11 +93,13 @@ impl InMemoryEventStore {
             }
         }
 
-        // Only on success: extend and project
-        let events = inner.streams.entry(stream).or_default();
-        events.extend(envelopes);
-        let folded = Job::from_events(events)
-            .map_err(|e| EventStoreError::Backend(format!("stream no longer folds: {e}")))?;
+        // Only on success: fold the combined batch BEFORE any map mutation,
+        // so a version-sequential but domain-illegal batch never persists.
+        let mut combined = inner.streams.get(&stream).cloned().unwrap_or_default();
+        combined.extend(envelopes);
+        let folded = Job::from_events(&combined)
+            .map_err(|e| EventStoreError::Backend(format!("batch does not fold: {e}")))?;
+        inner.streams.insert(stream, combined);
         Self::project_locked(inner, &folded);
         Ok(())
     }
@@ -304,6 +306,40 @@ mod tests {
             !inner.index.contains_key(&stream),
             "terminal ⇒ undispatchable"
         );
+    }
+
+    #[tokio::test]
+    async fn fold_rejected_append_leaves_no_trace() {
+        use koine_application::ports::IdGenerator;
+        let store = InMemoryEventStore::new();
+        let ids = SeededIds::new(5);
+        let clock = clock();
+        let stream = ids.job_id();
+        let correlation = ids.correlation_id();
+        // version-sequential but domain-illegal: a stream cannot start with `suspended`
+        let bad = koine_application::wrap_events(
+            &ids,
+            &clock,
+            stream,
+            0,
+            correlation,
+            None,
+            None,
+            vec![koine_domain::JobEvent::Suspended],
+        );
+        let err = store
+            .append(stream, 0, bad)
+            .await
+            .expect_err("must not fold");
+        assert!(matches!(
+            err,
+            koine_application::EventStoreError::Backend(_)
+        ));
+        let err = store.load(stream).await.expect_err("no residue");
+        assert!(matches!(
+            err,
+            koine_application::EventStoreError::StreamNotFound(_)
+        ));
     }
 
     #[tokio::test]
