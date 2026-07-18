@@ -15,7 +15,9 @@ pub async fn connect_pool(url: &str) -> Result<PgPool, sqlx::Error> {
     Ok(pool)
 }
 
+pub mod dispatcher;
 mod rows;
 pub mod store;
 
+pub use dispatcher::PostgresDispatcher;
 pub use store::PostgresEventStore;
