@@ -131,6 +131,9 @@ pub enum JobEvent {
         /// What it reported.
         reported: ReportedOutcome,
     },
+    /// The job crossed a stall threshold (no progress within its window).
+    /// Informational record; produced by phase 2's heartbeat mechanics.
+    Stalled,
     /// Reserved (phase 5): a journaled side-effect result.
     CheckpointRecorded {
         /// Step key (unique per job).
@@ -194,6 +197,7 @@ impl JobEvent {
             Self::Parked { .. } => "parked",
             Self::Cancelled { .. } => "cancelled",
             Self::LateAckConflict { .. } => "late_ack_conflict",
+            Self::Stalled => "stalled",
             Self::CheckpointRecorded { .. } => "checkpoint_recorded",
             Self::SignalReceived { .. } => "signal_received",
             Self::ApprovalRequested { .. } => "approval_requested",
@@ -289,6 +293,7 @@ mod tests {
                 lease,
                 reported: ReportedOutcome::Succeeded,
             },
+            JobEvent::Stalled,
             JobEvent::CheckpointRecorded {
                 key: "step-1".into(),
                 data: serde_json::json!(1),
