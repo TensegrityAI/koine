@@ -4,11 +4,19 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+    "RUSTSEC-2026-0066", # astral-tokio-tar PAX extension parser issue, transitive via testcontainers; acceptable for ring-3 test infra
+    "RUSTSEC-2026-0112", # astral-tokio-tar PAX header visibility issue, transitive via testcontainers; acceptable for ring-3 test infra
+    "RUSTSEC-2026-0113", # astral-tokio-tar unpack_in symlink issue, transitive via testcontainers; acceptable for ring-3 test infra
+    "RUSTSEC-2026-0145", # astral-tokio-tar PAX header issue, transitive via testcontainers; acceptable for ring-3 test infra
+    "RUSTSEC-2025-0134", # rustls-pemfile unmaintained, transitive via testcontainers; acceptable for ring-3 test infra
+]
 
 [licenses]
 version = 2
 allow = [
     "Apache-2.0",
+    "CDLA-Permissive-2.0",
     "MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",

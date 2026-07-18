@@ -13,3 +13,4 @@
 | [0009](0009-dashboard-vite-react-embedded.md) | Dashboard: Vite+React SPA, embedded | accepted | 2026-07-16 |
 | [0010](0010-event-encoding-and-identity.md) | Event encoding and identity | accepted | 2026-07-18 |
 | [0011](0011-dispatch-atomicity-and-lease-ephemera.md) | Dispatch atomicity and lease ephemera | accepted | 2026-07-18 |
+| [0012](0012-postgres-store-mechanics.md) | Postgres store mechanics | accepted | 2026-07-18 |
