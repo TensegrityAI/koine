@@ -14,3 +14,8 @@ pub async fn connect_pool(url: &str) -> Result<PgPool, sqlx::Error> {
     MIGRATOR.run(&pool).await.map_err(sqlx::Error::from)?;
     Ok(pool)
 }
+
+mod rows;
+pub mod store;
+
+pub use store::PostgresEventStore;
