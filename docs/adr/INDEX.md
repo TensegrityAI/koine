@@ -11,3 +11,5 @@
 | [0007](0007-grpc-data-plane-rest-mcp-control-plane.md) | gRPC data plane; REST+MCP control plane | accepted | 2026-07-16 |
 | [0008](0008-at-least-once-leases.md) | At-least-once delivery with leases | accepted | 2026-07-16 |
 | [0009](0009-dashboard-vite-react-embedded.md) | Dashboard: Vite+React SPA, embedded | accepted | 2026-07-16 |
+| [0010](0010-event-encoding-and-identity.md) | Event encoding and identity | accepted | 2026-07-18 |
+| [0011](0011-dispatch-atomicity-and-lease-ephemera.md) | Dispatch atomicity and lease ephemera | accepted | 2026-07-18 |

@@ -1,4 +1,9 @@
 //! Koiné in-memory driven adapter for tests: complete port implementations without I/O.
 
-use koine_application as _;
-use koine_domain as _;
+pub mod dispatcher;
+pub mod store;
+pub mod test_support;
+
+pub use dispatcher::InMemoryDispatcher;
+pub use store::InMemoryEventStore;
+pub use test_support::{FixedClock, SeededIds};
