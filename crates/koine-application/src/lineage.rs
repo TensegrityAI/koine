@@ -18,7 +18,9 @@ pub struct Lineage {
 
 /// Wraps domain events into envelopes with sequential versions after
 /// `base_version`, one shared `recorded_at`/lineage, fresh event ids.
-#[allow(clippy::too_many_arguments)]
+// Owned by value to match every planned call site (Tasks 9-12) exactly;
+// fan-out over N events clones internally regardless of by-value vs by-ref.
+#[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
 pub fn wrap_events<G, C>(
     ids: &G,
     clock: &C,
@@ -26,7 +28,7 @@ pub fn wrap_events<G, C>(
     base_version: u64,
     correlation_id: CorrelationId,
     causation_id: Option<EventId>,
-    traceparent: Option<&str>,
+    traceparent: Option<String>,
     events: Vec<JobEvent>,
 ) -> Vec<EventEnvelope>
 where
@@ -46,7 +48,7 @@ where
                 recorded_at,
                 correlation_id,
                 causation_id,
-                traceparent: traceparent.map(ToString::to_string),
+                traceparent: traceparent.clone(),
                 schema_version: SCHEMA_VERSION,
                 event,
             }
@@ -109,7 +111,7 @@ mod tests {
             4,
             correlation,
             None,
-            Some("00-abc-def-01"),
+            Some("00-abc-def-01".into()),
             vec![JobEvent::Suspended, JobEvent::Resumed],
         );
         assert_eq!(envelopes.len(), 2);
