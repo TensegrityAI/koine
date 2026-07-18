@@ -37,4 +37,12 @@ pub enum DomainError {
     /// A lease TTL could not be represented.
     #[error("ttl out of range")]
     InvalidTtl,
+    /// Envelope versions were not sequential when folding a stream.
+    #[error("non-sequential version: expected {expected}, got {got}")]
+    NonSequentialVersion {
+        /// The version the fold expected next.
+        expected: u64,
+        /// The version found on the envelope.
+        got: u64,
+    },
 }
