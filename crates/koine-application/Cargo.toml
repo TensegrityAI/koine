@@ -9,7 +9,11 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+chrono = { version = "0.4", features = ["serde"] }
 koine-domain = { version = "0.1.0", path = "../koine-domain" }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v7", "serde"] }
 
 [lints]
 workspace = true
