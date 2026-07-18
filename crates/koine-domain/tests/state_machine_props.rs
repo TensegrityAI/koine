@@ -102,6 +102,8 @@ proptest! {
         let mut current_lease = LeaseId::new(Uuid::from_u128(lease_counter));
 
         for cmd in cmds {
+            let increments_attempt =
+                matches!(cmd, Cmd::FailRetryable | Cmd::FailFatal | Cmd::Expire);
             let events: Vec<JobEvent> = match cmd {
                 Cmd::Advance(secs) => {
                     now += TimeDelta::seconds(i64::from(secs));
@@ -138,6 +140,13 @@ proptest! {
                 applied += 1;
             }
             prop_assert!(job.attempt >= attempt_before, "attempt is monotonic");
+            if increments_attempt && !events.is_empty() {
+                prop_assert_eq!(
+                    job.attempt,
+                    attempt_before + 1,
+                    "fail/expire must count exactly one attempt"
+                );
+            }
             prop_assert_eq!(job.version, applied, "version counts applied events");
 
             if matches!(job.state, JobState::Succeeded | JobState::Cancelled) {
