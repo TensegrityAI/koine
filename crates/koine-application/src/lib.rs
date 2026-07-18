@@ -2,6 +2,7 @@
 
 pub mod lineage;
 pub mod ports;
+pub mod use_cases;
 
 pub use lineage::{Lineage, wrap_events};
 pub use ports::{
