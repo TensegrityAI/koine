@@ -2,7 +2,7 @@
 
 **Current phase: 0 — Foundations** (see design spec §6 for all phases).
 
-Active plan: `docs/superpowers/plans/2026-07-18-koine-phase-1a-domain-core.md`.
+Active plan: `docs/superpowers/plans/2026-07-18-koine-phase-1b-postgres-store.md`.
 
 ## Quick orientation
 
