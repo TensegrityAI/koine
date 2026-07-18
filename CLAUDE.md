@@ -1,8 +1,9 @@
 # CLAUDE.md — Koiné living context
 
-**Current phase: 0 — Foundations** (see design spec §6 for all phases).
+**Current phase: 1 complete — next: phase 2 (data plane)** (see design spec
+§6 for all phases).
 
-Active plan: `docs/superpowers/plans/2026-07-18-koine-phase-1b-postgres-store.md`.
+Active plan: none until the phase-2 plan is written.
 
 ## Quick orientation
 
@@ -21,3 +22,4 @@ Active plan: `docs/superpowers/plans/2026-07-18-koine-phase-1b-postgres-store.md
 - 2026-07-17 — AOL hardened: DoR/DoD gates, rubrics, workflows, instructions, architecture wiki, markdownlint in CI (8 jobs).
 - 2026-07-17 — ROADMAP.md + epics for phases 1-5 committed. Next: phase 1 detailed implementation plan (starts with the event-schema ADR), then execution.
 - 2026-07-18 — Phase 1A complete: event-sourced domain core green on rings 1–2. Next: phase 1B plan (Postgres store, outbox, dispatch projection, ring 3).
+- 2026-07-18 — Phase 1B complete: Postgres store, outbox relay, ring 3, dev-loop. PHASE 1 COMPLETE. Next: phase 2 plan (TLA+ model first — epic item 1).

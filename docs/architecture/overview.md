@@ -7,8 +7,9 @@ job is the source of truth (ADR 0004): all state derives from an append-only
 event log, which makes traceability, replay, and repair-&-resume structural
 properties rather than features bolted on.
 
-**Status: phase 1A.** The workspace, boundaries, and governance below exist;
-`koine-domain`, `koine-application`, and `koine-store-memory` now have real
+**Status: phase 1B — phase 1 complete.** The workspace, boundaries, and
+governance below exist; `koine-domain`, `koine-application`,
+`koine-store-memory`, `koine-store-postgres`, and `koine-server` now have real
 behavior (see the crate table and their pages below). Remaining crates are
 still documented stubs; behavior arrives per phase (design spec §6).
 
@@ -50,7 +51,7 @@ adapters ← server.
 | --- | --- | --- |
 | `koine-domain` | Domain | Aggregates, events, state machines. No async, no I/O — see [koine-domain.md](koine-domain.md) |
 | `koine-application` | Application | Use cases + driven ports (`EventStore`, `Dispatcher`, `Clock`, `IdGenerator`); `OutboxRelay`/`ProjectionStore` land in 1B — see [koine-application.md](koine-application.md) |
-| `koine-store-postgres` | Driven | Event store, transactional outbox, projections (phase 1B) |
+| `koine-store-postgres` | Driven | Event store, transactional outbox, dispatch projection — see [koine-store-postgres.md](koine-store-postgres.md) |
 | `koine-store-memory` | Driven | Full in-memory port implementations for tests — see [koine-store-memory.md](koine-store-memory.md) |
 | `koine-proto` | Contract | Versioned protobuf wire contract, standalone (phase 2) |
 | `koine-grpc` | Driving | Data plane adapter (phase 2) |
@@ -58,7 +59,7 @@ adapters ← server.
 | `koine-observability` | Infra | OTel/Prometheus init (phase 3) |
 | `koine-cli` | Binary | Operator CLI (phase 3) |
 | `koine-mcp` | Driving | Agent control plane (phase 4) |
-| `koine-server` | Binary | Composition root — grows with each phase (from phase 1) |
+| `koine-server` | Binary | Composition root; `dev-loop` (phase 1B) — grows with each phase — see [koine-server.md](koine-server.md) |
 
 ## Why: the load-bearing decisions
 

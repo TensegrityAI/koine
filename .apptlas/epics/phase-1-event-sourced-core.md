@@ -1,7 +1,9 @@
 # Epic: Phase 1 — Event-sourced core
 
-- **State:** ongoing — 1A (domain core, rings 1–2) delivered; 1B (Postgres,
-  outbox, ring 3) next
+- **State:** COMPLETE (2026-07-18) — 1A (rings 1–2) + 1B (Postgres, outbox,
+  ring 3, dev-loop). Exit criteria met: rings 1–3 green; lifecycle through
+  use cases against both stores; dispatch projection replays from zero
+  (tests/replay.rs).
 - **Implements:** design spec §3 (event model, delivery semantics, hot path), §6 phase 1
 - **Exit criteria:** test rings 1–3 green (ring 4 arrives with phase 2);
   enqueue→lease→ack/fail→retry→park works through use cases against both
