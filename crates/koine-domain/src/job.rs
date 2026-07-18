@@ -274,7 +274,6 @@ impl Job {
                     state: state.name(),
                     event: ev.kind(),
                 };
-                self.state = state;
                 return Err(rejected);
             }
         };

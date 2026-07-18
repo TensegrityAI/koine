@@ -58,7 +58,7 @@ uuid_newtype!(
 );
 
 /// Identity a worker chooses for itself (validated string).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct WorkerId(String);
 
@@ -131,5 +131,11 @@ mod tests {
         assert!(WorkerId::new("").is_err());
         assert!(WorkerId::new("w".repeat(257)).is_err());
         assert!(WorkerId::new("worker-1").is_ok());
+    }
+
+    #[test]
+    fn worker_id_deserialization_revalidates() {
+        assert!(serde_json::from_str::<WorkerId>("\"ok-worker\"").is_ok());
+        assert!(serde_json::from_str::<WorkerId>("\"\"").is_err());
     }
 }

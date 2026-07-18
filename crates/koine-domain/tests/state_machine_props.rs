@@ -241,5 +241,18 @@ fn event_strategy() -> impl Strategy<Value = JobEvent> {
             new_payload: None,
             note: "n".into()
         }),
+        Just(JobEvent::Stalled),
+        Just(JobEvent::SignalReceived {
+            name: "s".into(),
+            data: serde_json::json!(null)
+        }),
+        Just(JobEvent::ApprovalGranted {
+            key: "a".into(),
+            approver: "p".into()
+        }),
+        Just(JobEvent::ApprovalDenied {
+            key: "a".into(),
+            approver: "p".into()
+        }),
     ]
 }

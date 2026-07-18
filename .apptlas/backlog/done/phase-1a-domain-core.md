@@ -85,6 +85,9 @@ record):**
   current length from `.get()` (no insertion) and running all validation
   before any map mutation, so failures are side-effect-free. Regression
   test: `failed_append_leaves_no_phantom_stream`.
+- Final whole-branch review: M1 fold-rejected-append side effect found and
+  fixed (see fix commits); M2-M5 + polish applied; full gate green
+  post-fix.
 
 ## Spec-fidelity statement (filled at close)
 
@@ -104,3 +107,6 @@ Faithful to spec §3 at rings 1–2, with recorded dispositions:
   (disposition: split plan, epic items 8–11).
 - Heartbeat extensions are ephemeral (no event) — per spec §3 itself and
   ADR 0011-c.
+- Spec §3 draws `scheduled` as its own resting state; modeled as
+  `Pending { not_before: Some(_) }` — same semantics, one fewer state
+  (disposition: recorded here, final review 2026-07-18).

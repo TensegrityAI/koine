@@ -2,7 +2,7 @@
 
 use koine_domain::{Job, JobId};
 
-use crate::lineage::wrap_events;
+use crate::lineage::{lineage_of, wrap_events};
 use crate::ports::{Clock, EventStore, IdGenerator};
 use crate::use_cases::worker_ack::AckError;
 
@@ -27,12 +27,7 @@ impl<S: EventStore, G: IdGenerator, C: Clock> CancelJob<'_, S, G, C> {
         let stream = self.store.load(job_id).await?;
         let job = Job::from_events(&stream)?;
         let event = job.cancel(reason)?;
-        let correlation = stream.first().map_or_else(
-            || koine_domain::CorrelationId::new(uuid::Uuid::nil()),
-            |env| env.correlation_id,
-        );
-        let causation = stream.last().map(|env| env.event_id);
-        let traceparent = stream.first().and_then(|env| env.traceparent.clone());
+        let (correlation, causation, traceparent) = lineage_of(&stream);
         let envelopes = wrap_events(
             self.ids,
             self.clock,

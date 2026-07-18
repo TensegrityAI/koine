@@ -1,6 +1,6 @@
 [package]
 name = "koine-application"
-description = "Koiné application layer: use cases and driven ports (`EventStore`, `OutboxRelay`, `ProjectionStore`, `LeaseManager`, `Clock`, `IdGenerator`)."
+description = "Koiné application layer: use cases and driven ports (EventStore, Dispatcher, Clock, IdGenerator)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

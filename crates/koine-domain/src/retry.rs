@@ -50,7 +50,9 @@ impl RetryPolicy {
         let exp = attempts_completed.saturating_sub(1).min(31);
         let uncapped = self.base_delay.saturating_mul(2_u32.saturating_pow(exp));
         let capped = uncapped.min(self.max_delay);
-        let millis = u64::try_from(capped.as_millis()).unwrap_or(u64::MAX);
+        let millis = u64::try_from(capped.as_millis())
+            .unwrap_or(u64::MAX)
+            .min(u64::MAX - 1);
         let jittered = if millis == 0 {
             0
         } else {
@@ -115,6 +117,16 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn extreme_max_delay_never_panics() {
+        let p = RetryPolicy {
+            max_attempts: 10,
+            base_delay: Duration::MAX,
+            max_delay: Duration::MAX,
+        };
+        assert!(matches!(p.decide(1, 7), RetryDecision::RetryAfter(_)));
     }
 
     #[test]

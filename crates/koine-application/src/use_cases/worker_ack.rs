@@ -3,13 +3,12 @@
 //! (spec §3: information is never lost).
 
 use koine_domain::{
-    CorrelationId, DomainError, EventEnvelope, EventId, Job, JobError, JobId, LeaseId,
-    ReportedOutcome, WorkerId,
+    DomainError, EventEnvelope, Job, JobError, JobId, LeaseId, ReportedOutcome, WorkerId,
 };
 use serde_json::Value;
 use thiserror::Error;
 
-use crate::lineage::wrap_events;
+use crate::lineage::{lineage_of, wrap_events};
 use crate::ports::{Clock, EventStore, EventStoreError, IdGenerator};
 
 /// Errors from worker acks.
@@ -140,14 +139,4 @@ impl<S: EventStore, G: IdGenerator, C: Clock> WorkerAck<'_, S, G, C> {
         let event = Job::late_ack(worker.clone(), lease, reported);
         self.append(job, stream, vec![event]).await
     }
-}
-
-fn lineage_of(stream: &[EventEnvelope]) -> (CorrelationId, Option<EventId>, Option<String>) {
-    let correlation = stream.first().map_or_else(
-        || CorrelationId::new(uuid::Uuid::nil()),
-        |env| env.correlation_id,
-    );
-    let causation = stream.last().map(|env| env.event_id);
-    let traceparent = stream.first().and_then(|env| env.traceparent.clone());
-    (correlation, causation, traceparent)
 }

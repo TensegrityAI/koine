@@ -5,7 +5,7 @@
 use koine_domain::{DomainError, Job};
 use thiserror::Error;
 
-use crate::lineage::wrap_events;
+use crate::lineage::{lineage_of, wrap_events};
 use crate::ports::{Clock, DispatchError, Dispatcher, EventStore, EventStoreError, IdGenerator};
 
 /// Errors from the sweep.
@@ -52,12 +52,7 @@ impl<S: EventStore, D: Dispatcher, G: IdGenerator, C: Clock> SweepExpiredLeases<
             let Ok(events) = job.expire_lease(now, self.ids.jitter_seed()) else {
                 continue; // already acked or otherwise moved on — not expired
             };
-            let correlation = stream.first().map_or_else(
-                || koine_domain::CorrelationId::new(uuid::Uuid::nil()),
-                |env| env.correlation_id,
-            );
-            let causation = stream.last().map(|env| env.event_id);
-            let traceparent = stream.first().and_then(|env| env.traceparent.clone());
+            let (correlation, causation, traceparent) = lineage_of(&stream);
             let envelopes = wrap_events(
                 self.ids,
                 self.clock,

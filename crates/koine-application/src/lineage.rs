@@ -56,6 +56,21 @@ where
         .collect()
 }
 
+/// Lineage carried forward from an existing stream: correlation from the
+/// first envelope, causation from the last, traceparent from the first.
+/// The nil-correlation fallback is unreachable after a successful fold
+/// (streams are never empty); it exists only to keep the function total.
+#[must_use]
+pub fn lineage_of(stream: &[EventEnvelope]) -> (CorrelationId, Option<EventId>, Option<String>) {
+    let correlation = stream.first().map_or_else(
+        || CorrelationId::new(uuid::Uuid::nil()),
+        |env| env.correlation_id,
+    );
+    let causation = stream.last().map(|env| env.event_id);
+    let traceparent = stream.first().and_then(|env| env.traceparent.clone());
+    (correlation, causation, traceparent)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

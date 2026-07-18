@@ -65,9 +65,8 @@ impl<G: IdGenerator, C: Clock> InMemoryDispatcher<G, C> {
                 let event = job
                     .lease(worker.clone(), lease, now, ttl)
                     .map_err(|e| EventStoreError::Backend(format!("index/state drift: {e}")))?;
-                let correlation_id = stream[0].correlation_id;
-                let traceparent = stream[0].traceparent.clone();
-                let causation_id = stream.last().map(|env| env.event_id);
+                let (correlation_id, causation_id, traceparent) =
+                    koine_application::lineage_of(&stream);
                 let envelopes = wrap_events(
                     self.ids.as_ref(),
                     self.clock.as_ref(),

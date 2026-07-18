@@ -14,25 +14,20 @@ use koine_domain::{EventEnvelope, Job, JobId, JobState, LeaseId, Priority, Queue
 /// heartbeats move it without events, ADR 0011-c).
 #[derive(Debug, Clone)]
 pub(crate) struct LeaseState {
-    #[allow(dead_code)]
     pub(crate) lease: LeaseId,
+    // carried for Postgres-adapter parity in 1B; unread until then
     #[allow(dead_code)]
     pub(crate) worker: WorkerId,
-    #[allow(dead_code)]
     pub(crate) expires_at: DateTime<Utc>,
 }
 
 /// One dispatchable (or leased) job in the index.
 #[derive(Debug, Clone)]
 pub(crate) struct DispatchEntry {
-    #[allow(dead_code)]
     pub(crate) queue: QueueName,
-    #[allow(dead_code)]
     pub(crate) priority: Priority,
     pub(crate) seq: u64,
-    #[allow(dead_code)]
     pub(crate) not_before: Option<DateTime<Utc>>,
-    #[allow(dead_code)]
     pub(crate) lease: Option<LeaseState>,
 }
 
