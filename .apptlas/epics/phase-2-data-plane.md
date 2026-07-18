@@ -30,7 +30,7 @@
 5. **Worker auth v1** — ADR: minimal credible scheme (per-worker token +
    TLS guidance); full OAuth/OIDC is out of scope until a real need.
    *Origin: roadmap review 2026-07-17 — new scope beyond the spec (which
-   specifies auth only for MCP); maintainer ratification pending.*
+   specifies auth only for MCP); ratified by maintainer decision 2026-07-18.*
 6. **`WorkerRegistration`** — the spec §2 domain concept lands here, where
    workers first connect: registration/identity events feeding worker
    visibility (disposition from phase-1 epic).
