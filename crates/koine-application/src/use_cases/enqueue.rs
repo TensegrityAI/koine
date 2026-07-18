@@ -3,9 +3,48 @@
 use chrono::{DateTime, Utc};
 use koine_domain::{Job, JobId, Priority, QueueName, RetryPolicy};
 use serde_json::Value;
+use thiserror::Error;
 
 use crate::lineage::{Lineage, wrap_events};
 use crate::ports::{Clock, EventStore, EventStoreError, IdGenerator};
+
+/// Errors from enqueueing.
+#[derive(Debug, Error)]
+pub enum EnqueueError {
+    /// The retry policy fails the sanity bounds (broker protects itself
+    /// from client-supplied pathology — hardening item AC1).
+    #[error("invalid retry policy: {0}")]
+    InvalidPolicy(&'static str),
+    /// Store failure.
+    #[error(transparent)]
+    Store(#[from] EventStoreError),
+}
+
+/// Longest delay any policy may request (30 days).
+#[allow(clippy::duration_suboptimal_units)]
+const MAX_SANE_DELAY: std::time::Duration = std::time::Duration::from_secs(60 * 60 * 24 * 30);
+/// Most attempts any policy may request.
+const MAX_SANE_ATTEMPTS: u32 = 10_000;
+
+fn validate_policy(policy: &RetryPolicy) -> Result<(), EnqueueError> {
+    if policy.max_attempts == 0 {
+        return Err(EnqueueError::InvalidPolicy("max_attempts must be >= 1"));
+    }
+    if policy.max_attempts > MAX_SANE_ATTEMPTS {
+        return Err(EnqueueError::InvalidPolicy(
+            "max_attempts above sane ceiling",
+        ));
+    }
+    if policy.base_delay > policy.max_delay {
+        return Err(EnqueueError::InvalidPolicy("base_delay exceeds max_delay"));
+    }
+    if policy.max_delay > MAX_SANE_DELAY {
+        return Err(EnqueueError::InvalidPolicy(
+            "max_delay above 30-day ceiling",
+        ));
+    }
+    Ok(())
+}
 
 /// Command input for [`EnqueueJob`].
 #[derive(Debug, Clone)]
@@ -39,8 +78,9 @@ impl<S: EventStore, G: IdGenerator, C: Clock> EnqueueJob<'_, S, G, C> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the event store append operation fails.
-    pub async fn execute(&self, cmd: EnqueueCommand) -> Result<JobId, EventStoreError> {
+    /// Returns an error if the retry policy fails sanity bounds, or if the event store append operation fails.
+    pub async fn execute(&self, cmd: EnqueueCommand) -> Result<JobId, EnqueueError> {
+        validate_policy(&cmd.retry_policy)?;
         let job_id = self.ids.job_id();
         let correlation = cmd
             .lineage

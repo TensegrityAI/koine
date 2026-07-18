@@ -1,41 +1,45 @@
-//! Ring-2 lifecycle tests: use cases against the complete in-memory
-//! adapters (testing-policy ring 2 — fast, no Docker).
+//! Ring-3 lifecycle tests: the same crash-recovery story from
+//! `koine-store-memory`'s ring-2 suite, replayed against the complete
+//! Postgres adapters (testing-policy ring 3 — real SQL, via Docker).
+// clippy.toml's allow-expect-in-tests only covers #[test] fns, not shared helpers.
 #![allow(clippy::expect_used)]
+
+mod support;
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{TimeZone, Utc};
-use koine_application::use_cases::cancel::CancelJob;
 use koine_application::use_cases::enqueue::{EnqueueCommand, EnqueueJob};
-use koine_application::use_cases::heartbeat::Heartbeat;
 use koine_application::use_cases::sweep::SweepExpiredLeases;
 use koine_application::use_cases::worker_ack::{AckOutcome, WorkerAck};
 use koine_application::{Lineage, ports::Dispatcher as _, ports::EventStore as _};
-use koine_domain::{JobError, JobId, Priority, QueueName, RetryPolicy, WorkerId};
-use koine_store_memory::{FixedClock, InMemoryDispatcher, InMemoryEventStore, SeededIds};
+use koine_domain::{JobId, Priority, QueueName, RetryPolicy, WorkerId};
+use koine_store_memory::{FixedClock, SeededIds};
+use koine_store_postgres::{PostgresDispatcher, PostgresEventStore};
 
 struct World {
-    store: Arc<InMemoryEventStore>,
+    _guard: testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
+    store: PostgresEventStore,
     ids: Arc<SeededIds>,
     clock: Arc<FixedClock>,
-    dispatcher: InMemoryDispatcher<SeededIds, FixedClock>,
+    dispatcher: PostgresDispatcher<SeededIds, FixedClock>,
     queue: QueueName,
     worker: WorkerId,
 }
 
-fn world() -> World {
-    let store = Arc::new(InMemoryEventStore::new());
+async fn world() -> World {
+    let (guard, pool) = support::pg().await;
     let ids = Arc::new(SeededIds::new(11));
     let clock = Arc::new(FixedClock::at(
         Utc.with_ymd_and_hms(2026, 7, 18, 12, 0, 0)
             .single()
             .expect("ts"),
     ));
-    let dispatcher =
-        InMemoryDispatcher::new(Arc::clone(&store), Arc::clone(&ids), Arc::clone(&clock));
+    let dispatcher = PostgresDispatcher::new(pool.clone(), Arc::clone(&ids), Arc::clone(&clock));
     World {
-        store,
+        _guard: guard,
+        store: PostgresEventStore::new(pool),
         ids,
         clock,
         dispatcher,
@@ -54,7 +58,7 @@ fn tight_policy() -> RetryPolicy {
 
 async fn enqueue(w: &World, policy: RetryPolicy) -> JobId {
     EnqueueJob {
-        store: w.store.as_ref(),
+        store: &w.store,
         ids: w.ids.as_ref(),
         clock: w.clock.as_ref(),
     }
@@ -80,9 +84,26 @@ async fn kinds(w: &World, job: JobId) -> Vec<&'static str> {
         .collect()
 }
 
-fn ack(w: &World) -> WorkerAck<'_, InMemoryEventStore, SeededIds, FixedClock> {
+fn ack(w: &World) -> WorkerAck<'_, PostgresEventStore, SeededIds, FixedClock> {
     WorkerAck {
-        store: w.store.as_ref(),
+        store: &w.store,
+        ids: w.ids.as_ref(),
+        clock: w.clock.as_ref(),
+    }
+}
+
+fn sweeper(
+    w: &World,
+) -> SweepExpiredLeases<
+    '_,
+    PostgresEventStore,
+    PostgresDispatcher<SeededIds, FixedClock>,
+    SeededIds,
+    FixedClock,
+> {
+    SweepExpiredLeases {
+        store: &w.store,
+        dispatcher: &w.dispatcher,
         ids: w.ids.as_ref(),
         clock: w.clock.as_ref(),
     }
@@ -90,7 +111,7 @@ fn ack(w: &World) -> WorkerAck<'_, InMemoryEventStore, SeededIds, FixedClock> {
 
 #[tokio::test]
 async fn happy_path_records_the_full_story() {
-    let w = world();
+    let w = world().await;
     let job = enqueue(&w, RetryPolicy::default()).await;
     let leased = w
         .dispatcher
@@ -127,130 +148,8 @@ async fn happy_path_records_the_full_story() {
 }
 
 #[tokio::test]
-async fn retryable_failure_backs_off_then_retries() {
-    let w = world();
-    let job = enqueue(&w, tight_policy()).await;
-    let leased = w
-        .dispatcher
-        .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-        .await
-        .expect("claim")
-        .expect("job");
-    ack(&w).start(job, &w.worker).await.expect("start");
-    let outcome = ack(&w)
-        .fail(
-            job,
-            &w.worker,
-            leased.lease,
-            JobError {
-                kind: "io".into(),
-                message: "boom".into(),
-                stacktrace: None,
-                retryable: true,
-            },
-        )
-        .await
-        .expect("fail");
-    assert_eq!(outcome, AckOutcome::Recorded);
-    assert_eq!(
-        kinds(&w, job).await,
-        vec!["enqueued", "leased", "started", "failed", "retry_scheduled"]
-    );
-    assert!(
-        w.dispatcher
-            .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-            .await
-            .expect("claim")
-            .is_none(),
-        "backoff must gate the retry"
-    );
-    w.clock.advance(Duration::from_secs(3));
-    let retried = w
-        .dispatcher
-        .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-        .await
-        .expect("claim")
-        .expect("retry after backoff");
-    assert_eq!(retried.attempt, 1);
-}
-
-#[tokio::test]
-async fn non_retryable_failure_parks_immediately() {
-    let w = world();
-    let job = enqueue(&w, RetryPolicy::default()).await;
-    let leased = w
-        .dispatcher
-        .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-        .await
-        .expect("claim")
-        .expect("job");
-    ack(&w).start(job, &w.worker).await.expect("start");
-    ack(&w)
-        .fail(
-            job,
-            &w.worker,
-            leased.lease,
-            JobError {
-                kind: "bug".into(),
-                message: "bad input".into(),
-                stacktrace: None,
-                retryable: false,
-            },
-        )
-        .await
-        .expect("fail");
-    assert_eq!(kinds(&w, job).await.last(), Some(&"parked"));
-    assert!(
-        w.dispatcher
-            .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-            .await
-            .expect("claim")
-            .is_none()
-    );
-}
-
-#[tokio::test]
-async fn cancel_removes_a_pending_job() {
-    let w = world();
-    let job = enqueue(&w, RetryPolicy::default()).await;
-    CancelJob {
-        store: w.store.as_ref(),
-        ids: w.ids.as_ref(),
-        clock: w.clock.as_ref(),
-    }
-    .execute(job, Some("operator".into()))
-    .await
-    .expect("cancel");
-    assert_eq!(kinds(&w, job).await, vec!["enqueued", "cancelled"]);
-    assert!(
-        w.dispatcher
-            .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-            .await
-            .expect("claim")
-            .is_none()
-    );
-}
-
-fn sweeper(
-    w: &World,
-) -> SweepExpiredLeases<
-    '_,
-    InMemoryEventStore,
-    InMemoryDispatcher<SeededIds, FixedClock>,
-    SeededIds,
-    FixedClock,
-> {
-    SweepExpiredLeases {
-        store: w.store.as_ref(),
-        dispatcher: &w.dispatcher,
-        ids: w.ids.as_ref(),
-        clock: w.clock.as_ref(),
-    }
-}
-
-#[tokio::test]
 async fn worker_crash_is_recovered_by_the_sweep() {
-    let w = world();
+    let w = world().await;
     let job = enqueue(&w, tight_policy()).await;
     let leased = w
         .dispatcher
@@ -281,7 +180,7 @@ async fn worker_crash_is_recovered_by_the_sweep() {
 
 #[tokio::test]
 async fn late_ack_after_expiry_is_recorded_never_lost() {
-    let w = world();
+    let w = world().await;
     let job = enqueue(&w, tight_policy()).await;
     let stale = w
         .dispatcher
@@ -318,42 +217,9 @@ async fn late_ack_after_expiry_is_recorded_never_lost() {
 }
 
 #[tokio::test]
-async fn heartbeats_keep_the_lease_alive() {
-    let w = world();
-    let _job = enqueue(&w, tight_policy()).await;
-    let leased = w
-        .dispatcher
-        .lease_next(&w.queue, &w.worker, Duration::from_secs(30))
-        .await
-        .expect("claim")
-        .expect("job");
-    w.clock.advance(Duration::from_secs(20));
-    assert!(
-        Heartbeat {
-            dispatcher: &w.dispatcher
-        }
-        .execute(leased.lease, Duration::from_secs(30))
-        .await
-        .expect("heartbeat")
-    );
-    w.clock.advance(Duration::from_secs(20));
-    assert_eq!(
-        sweeper(&w).execute().await.expect("sweep"),
-        0,
-        "extended lease is alive"
-    );
-    w.clock.advance(Duration::from_secs(11));
-    assert_eq!(
-        sweeper(&w).execute().await.expect("sweep"),
-        1,
-        "then it expires"
-    );
-}
-
-#[tokio::test]
 #[allow(clippy::duration_suboptimal_units)]
 async fn repeated_crashes_exhaust_into_parked() {
-    let w = world();
+    let w = world().await;
     let policy = RetryPolicy {
         max_attempts: 1,
         ..tight_policy()
@@ -379,58 +245,13 @@ async fn repeated_crashes_exhaust_into_parked() {
 }
 
 #[tokio::test]
-#[allow(clippy::duration_suboptimal_units)]
-async fn enqueue_rejects_pathological_retry_policies() {
-    use koine_application::use_cases::enqueue::EnqueueError;
-
-    let w = world();
-    let cases = [
-        RetryPolicy {
-            max_attempts: 0,
-            ..RetryPolicy::default()
-        },
-        RetryPolicy {
-            max_attempts: 20_000,
-            ..RetryPolicy::default()
-        },
-        RetryPolicy {
-            base_delay: Duration::from_secs(60),
-            max_delay: Duration::from_secs(1),
-            ..RetryPolicy::default()
-        },
-        RetryPolicy {
-            max_delay: Duration::from_secs(60 * 60 * 24 * 40),
-            ..RetryPolicy::default()
-        },
-    ];
-    for policy in cases {
-        let err = EnqueueJob {
-            store: w.store.as_ref(),
-            ids: w.ids.as_ref(),
-            clock: w.clock.as_ref(),
-        }
-        .execute(EnqueueCommand {
-            queue: w.queue.clone(),
-            payload: serde_json::json!({}),
-            priority: Priority(0),
-            retry_policy: policy.clone(),
-            not_before: None,
-            lineage: Lineage::default(),
-        })
-        .await
-        .expect_err("must reject");
-        assert!(matches!(err, EnqueueError::InvalidPolicy(_)), "{policy:?}");
-    }
-}
-
-#[tokio::test]
 async fn sweep_surfaces_non_transition_domain_errors() {
     // A poisoned policy that folds fine but overflows chrono at decision time:
     // base/max near u64::MAX ms. Enqueue-side validation now blocks this at
     // the boundary, so construct the stream directly through the store to
     // simulate pre-validation data (or a future migration gap).
     use koine_application::ports::IdGenerator;
-    let w = world();
+    let w = world().await;
     let stream = w.ids.job_id();
     let poisoned = RetryPolicy {
         max_attempts: 3,

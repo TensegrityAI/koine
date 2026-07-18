@@ -49,8 +49,13 @@ impl<S: EventStore, D: Dispatcher, G: IdGenerator, C: Clock> SweepExpiredLeases<
         for job_id in self.dispatcher.expired(now).await? {
             let stream = self.store.load(job_id).await?;
             let job = Job::from_events(&stream)?;
-            let Ok(events) = job.expire_lease(now, self.ids.jitter_seed()) else {
-                continue; // already acked or otherwise moved on — not expired
+            let events = match job.expire_lease(now, self.ids.jitter_seed()) {
+                Ok(events) => events,
+                // Already acked / state moved on: not expired anymore — skip.
+                Err(DomainError::IllegalTransition { .. }) => continue,
+                // Anything else (e.g. InvalidTtl from a poisoned policy) is a
+                // real fault: surface it, never strand the lease silently.
+                Err(other) => return Err(SweepError::Domain(other)),
             };
             let (correlation, causation, traceparent) = lineage_of(&stream);
             let envelopes = wrap_events(

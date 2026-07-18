@@ -6,5 +6,6 @@ pub mod use_cases;
 
 pub use lineage::{Lineage, lineage_of, wrap_events};
 pub use ports::{
-    Clock, DispatchError, Dispatcher, EventStore, EventStoreError, IdGenerator, LeasedJob,
+    Clock, DispatchError, Dispatcher, EventSink, EventStore, EventStoreError, IdGenerator,
+    LeasedJob, RelayError, SinkError,
 };

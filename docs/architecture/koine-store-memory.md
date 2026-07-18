@@ -34,7 +34,10 @@ that exercises use cases against real (if in-memory) atomicity.
   directly — claim and append share one lock acquisition, so there is no
   window where a job is claimed but not yet recorded. `extend_lease` and
   `expired` touch only the index's ephemeral `expires_at`; no event is
-  written for either.
+  written for either. `extend_lease` rejects an unrepresentable TTL as
+  `DispatchError::Backend("ttl out of range")` rather than saturating —
+  the same never-silently-clamp philosophy as the lease path, and matched
+  by the Postgres twin's `extend_lease`.
 - **Test doubles (`src/test_support.rs`)** — `FixedClock` (manually
   `advance`d) and `SeededIds` (sequential UUIDs seeding the high bits with a
   caller-chosen `seed`, and using that same `seed` as `jitter_seed()`) make
