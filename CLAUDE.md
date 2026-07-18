@@ -2,7 +2,7 @@
 
 **Current phase: 0 — Foundations** (see design spec §6 for all phases).
 
-Active plan: `docs/superpowers/plans/2026-07-17-koine-phase-0-foundations.md`.
+Active plan: `docs/superpowers/plans/2026-07-18-koine-phase-1a-domain-core.md`.
 
 ## Quick orientation
 
