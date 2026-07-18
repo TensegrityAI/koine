@@ -118,7 +118,6 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    #[allow(clippy::expect_used)]
     fn job_id_serde_is_transparent() {
         let id = JobId::new(Uuid::from_u128(7));
         let json = serde_json::to_string(&id).expect("serialize");
