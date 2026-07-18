@@ -22,7 +22,7 @@
     depend on domain), appends it, updates the index, and returns the
     `LeasedJob`. Use cases stay thin over this port; the orchestration
     atomicity lives where the transaction lives.
-  - **Lease extension is ephemeral:** `Dispatcher::extend_lease` updates the
+  - **(c) Lease extension is ephemeral:** `Dispatcher::extend_lease` updates the
     lease deadline in the dispatch index only. No event is written. Lease
     *expiry* is an event (`lease_expired`), produced by the sweep use case
     from `Dispatcher::expired`.

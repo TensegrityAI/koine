@@ -196,6 +196,10 @@ record):**
   typed `InvalidTtl` error instead of a process crash. Covered by
   `sweep_surfaces_non_transition_domain_errors` in both `koine-store-memory`
   and `koine-store-postgres`.
+- Final whole-branch review (2026-07-18): stale wiki pages for
+  koine-application/domain/store-memory (1B hardening surface) found and
+  fixed pre-merge — plan scoping gap recorded; rebuild_dispatch
+  quiesced-writers warning added (concurrent-use lease-overwrite hazard).
 
 No spec statement is contradicted; every divergence above is either an
 ADR-recorded deferral or a bug caught and corrected before this item closed.

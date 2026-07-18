@@ -207,6 +207,10 @@ pub(crate) async fn project_in_tx(
 /// first-appearance order and re-projects. The projection is derived state
 /// (ADR 0006) — this is both the replay guarantee's proof and an ops tool.
 ///
+/// Run only against quiesced writers (maintenance window): under concurrent
+/// claims this upsert can overwrite a fresh lease from a stale fold,
+/// re-exposing a leased job.
+///
 /// # Errors
 /// Database failure, or a stream that no longer folds (data corruption).
 pub async fn rebuild_dispatch(pool: &PgPool) -> Result<u32, EventStoreError> {

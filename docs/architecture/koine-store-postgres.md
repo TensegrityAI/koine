@@ -57,7 +57,9 @@ transaction standing in for the mutex guard.
   (`GROUP BY stream_id ORDER BY min(global_seq)`) and re-projects each one,
   proving the dispatch table is derived state: `TRUNCATE dispatch_queue` then
   rebuild lands on byte-identical rows
-  (`dispatch_queue_rebuilds_identically_from_the_log`).
+  (`dispatch_queue_rebuilds_identically_from_the_log`). Run only against
+  quiesced writers (maintenance window): under concurrent claims this upsert
+  can overwrite a fresh lease from a stale fold, re-exposing a leased job.
 - **Runtime queries** (`sqlx::query`/`query_as`, never `query!`) — no
   build-time `DATABASE_URL`, no offline-cache drift; the ring-3 suite against
   real migrations (never an inline schema copy) is the correctness gate.

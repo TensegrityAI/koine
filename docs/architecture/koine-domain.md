@@ -20,7 +20,11 @@ handed in by the caller.
   `succeed`, `fail`, `expire_lease`, `cancel`, `late_ack`) that validate
   against the current state and *return* the event(s) to append; they do not
   mutate `self`. `fail` and `expire_lease` each return two events (the
-  outcome plus the retry decision) so both land in one atomic append.
+  outcome plus the retry decision) so both land in one atomic append. Both
+  compute that retry deadline with checked `DateTime` arithmetic
+  (`now.checked_add_signed(delay)` → `DomainError::InvalidTtl` on overflow)
+  instead of a panicking `now + delay`, so an unrepresentable deadline is a
+  typed error, never a process crash.
   `late_ack` is always legal — a stale ack is a pure record, never rejected
   (spec §3: information is never discarded).
 - **States (`JobState`)** — `Pending { not_before }`, `Leased`, `Running`,

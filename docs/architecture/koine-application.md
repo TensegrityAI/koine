@@ -10,11 +10,14 @@ crate's job is to load, append, and wrap events with lineage.
 ## How it is built
 
 - **Ports (`src/ports.rs`)** — `EventStore` (`append`, `load`), `Dispatcher`
-  (`lease_next`, `extend_lease`, `expired`), `Clock` (`now`), `IdGenerator`
-  (`job_id`, `event_id`, `lease_id`, `correlation_id`, `jitter_seed`). All
-  four are `Send + Sync` traits using native async-fn-in-trait
-  (`-> impl Future<Output = ...> + Send`), so calls dispatch statically with
-  no boxed futures.
+  (`lease_next`, `extend_lease`, `expired`), `EventSink` (`deliver`) — the
+  outbox consumer port (ADR 0012), fed by an adapter's relay loop, with
+  `SinkError` (a failed batch) and `RelayError` (`Sink` plus adapter
+  `Backend` failure) covering the failure modes — `Clock` (`now`),
+  `IdGenerator` (`job_id`, `event_id`, `lease_id`, `correlation_id`,
+  `jitter_seed`). All five are `Send + Sync` traits using native
+  async-fn-in-trait (`-> impl Future<Output = ...> + Send`), so calls
+  dispatch statically with no boxed futures.
 - **Composite-operation contracts live in the adapter, not the use case**
   (ADR 0006/0011): `EventStore::append` must update the dispatch index
   atomically with the write; `Dispatcher::lease_next` must atomically pick
@@ -28,7 +31,11 @@ crate's job is to load, append, and wrap events with lineage.
   `event_id` per event, versions starting at `base_version + 1`.
 - **Use cases (`src/use_cases/`)**:
   - `enqueue::EnqueueJob` — opens a new stream with `Enqueued` at version 1;
-    mints a correlation id if the caller didn't supply one via `Lineage`.
+    mints a correlation id if the caller didn't supply one via `Lineage`;
+    validates the `RetryPolicy` against sane bounds first (`max_attempts` in
+    `1..=10_000`, `base_delay <= max_delay`, `max_delay` up to 30 days),
+    rejecting a pathological policy as `EnqueueError::InvalidPolicy` at the
+    enqueue boundary rather than letting it reach the domain.
   - `worker_ack::WorkerAck` — `start`, `succeed`, `fail`. A stale ack (the
     domain command fails because the lease no longer matches) is caught and
     turned into a `late_ack_conflict` record instead of propagating as an
@@ -39,10 +46,13 @@ crate's job is to load, append, and wrap events with lineage.
   - `heartbeat::Heartbeat` — a pass-through to `Dispatcher::extend_lease`;
     writes no event (ephemeral, ADR 0011-c).
   - `sweep::SweepExpiredLeases` — lists `Dispatcher::expired(now)`, folds
-    each stream, emits `lease_expired` + the retry decision. Races (a job
-    acked between listing and folding) are skipped via `Job::expire_lease`
-    returning an error, or the store rejecting with `VersionConflict` — the
-    next sweep sees the truth.
+    each stream, emits `lease_expired` + the retry decision. Only
+    `DomainError::IllegalTransition` (a job acked between listing and
+    folding — state already moved on) and the store rejecting with
+    `EventStoreError::VersionConflict` (lost a concurrent append) are
+    skipped — the next sweep sees the truth. Any other domain error (e.g.
+    `InvalidTtl` from a pathological policy) surfaces as `SweepError::Domain`
+    instead, so a stuck lease is never silently stranded.
 - **Lineage plumbing** — `worker_ack`, `cancel`, and `sweep` all derive
   `(correlation_id, causation_id, traceparent)` from the loaded stream:
   correlation is carried from the stream's first envelope (set at
@@ -63,6 +73,7 @@ crate's job is to load, append, and wrap events with lineage.
 - Defines the ports; `koine-store-memory` (today) and `koine-store-postgres`
   (phase 1B) implement them. Driving adapters (`koine-grpc`, `koine-http`,
   `koine-mcp`, `koine-cli`) call the use cases in this crate.
-- `OutboxRelay` and `ProjectionStore` ports — for the async projection tier
-  (history, metrics, dashboard) — are not implemented yet; they arrive with
-  phase 1B alongside the Postgres adapter.
+- The outbox consumer port shipped in phase 1B as `EventSink` (superseding
+  this page's earlier `OutboxRelay` placeholder name); a `ProjectionStore`
+  port for the async projection tier (history, metrics, dashboard) is still
+  not implemented — deferred to phase 3's real read projections.
