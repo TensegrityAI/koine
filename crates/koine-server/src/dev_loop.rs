@@ -6,33 +6,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use koine_application::Lineage;
-use koine_application::ports::{EventSink, EventStore as _, SinkError};
+use koine_application::ports::EventStore as _;
 use koine_application::use_cases::enqueue::{EnqueueCommand, EnqueueJob};
 use koine_application::use_cases::lease::LeaseNextJob;
 use koine_application::use_cases::sweep::SweepExpiredLeases;
 use koine_application::use_cases::worker_ack::WorkerAck;
-use koine_domain::{EventEnvelope, JobError, JobId, Priority, QueueName, RetryPolicy, WorkerId};
+use koine_domain::{JobError, JobId, Priority, QueueName, RetryPolicy, WorkerId};
 use koine_store_postgres::{
     PostgresDispatcher, PostgresEventStore, PostgresOutboxRelay, connect_pool,
 };
 use serde_json::Value;
 
 use crate::runtime::{SystemClock, UuidV7Ids};
-
-struct PrintingSink;
-impl EventSink for PrintingSink {
-    async fn deliver(&self, envelopes: &[EventEnvelope]) -> Result<(), SinkError> {
-        for env in envelopes {
-            println!(
-                "  [outbox→sink] {} v{} {}",
-                env.stream_id,
-                env.version,
-                env.event.kind()
-            );
-        }
-        Ok(())
-    }
-}
+use crate::sinks::PrintingSink;
 
 /// The retry policy for the exercise: short enough that the flaky/crashy
 /// paths resolve well inside the 60s budget.

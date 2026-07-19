@@ -20,7 +20,8 @@ koine-observability = { version = "0.1.0", path = "../koine-observability" }
 
 chrono = "0.4"
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tonic = { version = "0.14", default-features = false, features = ["router", "transport"] }
 uuid = { version = "1", features = ["v7"] }
 
 [lints]
