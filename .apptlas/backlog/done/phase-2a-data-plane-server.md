@@ -31,10 +31,12 @@
 - [x] AC3: the in-process wire suite proves the real tonic transport (not
   just direct trait calls) against every RPC, including auth rejection and
   signal-driven wakeup — *verify:* `cargo test -p koine-grpc --test wire`
-  (6 tests: `unauthenticated_calls_are_rejected`,
+  (9 tests: `unauthenticated_calls_are_rejected`,
   `fetch_streams_a_claimed_job`, `full_story_over_the_wire`,
   `stale_ack_returns_conflict`, `fetch_wakes_on_late_enqueue`,
-  `heartbeat_reports_liveness`).
+  `heartbeat_reports_liveness`, plus the final-review additions
+  `heartbeat_ttl_is_clamped_to_ceiling`, `fail_over_the_wire_schedules_retry`,
+  `fail_without_error_is_invalid_argument`).
 - [x] AC4: a fetch stream wakes on new work via the dispatch signal, not
   the idle-poll fallback — *verify:* `fetch_wakes_on_late_enqueue` (test 5
   of AC3's suite) uses a 10s `idle_poll` and asserts the job arrives within
@@ -93,8 +95,9 @@
 
 ## Evidence (filled at close)
 
-**Test suite — 108 tests total, all green** (`cargo test --workspace`,
-reran at this closeout):
+**Test suite — 111 tests total, all green** (`cargo test --workspace`,
+reran at this closeout; 108 at the original closeout commit, +3 wire tests
+from the final-review fix round):
 
 - Ring 1 (`koine-domain`): 33 unit + 3 property = 36 (unchanged this phase).
 - Ring 2 (`koine-application`: 1; `koine-store-memory`: 15 unit — the 12
@@ -111,9 +114,9 @@ reran at this closeout):
   `signal_wait_on_other_queue_times_out`,
   `presence_records_worker_with_queue`) = 20.
 - `koine-grpc` (new crate, real tonic transport): 10 unit (`src/auth.rs`) +
-  6 (`tests/wire.rs`, in-process duplex + in-memory adapters) + 1
+  9 (`tests/wire.rs`, in-process duplex + in-memory adapters) + 1
   (`tests/fetch_idle_disconnect.rs`) + 2 (`tests/grpc_e2e.rs`, real TCP +
-  real Postgres) = 19.
+  real Postgres) = 22.
 - `koine-server`: 7 (`src/serve.rs`'s `parse_config` unit tests:
   `missing_token_is_refused`, `empty_token_is_refused`,
   `defaults_apply_when_only_token_is_set`, `overrides_are_parsed`,
@@ -123,8 +126,8 @@ reran at this closeout):
 - `koine-proto`/`koine-cli`/`koine-http`/`koine-mcp`/`koine-observability`:
   0 tests each — `koine-proto` is a generated-code contract crate proven by
   its consumers' tests; the other four remain documented stubs.
-- Total: 36 + 26 + 20 + 19 + 7 = **108, 0 failed** (up from phase 1B's 75:
-  +33 from `koine-grpc`'s new suites, +3 memory-store signal tests, +1
+- Total: 36 + 26 + 20 + 22 + 7 = **111, 0 failed** (up from phase 1B's 75:
+  +36 from `koine-grpc`'s new suites, +3 memory-store signal tests, +1
   Postgres dispatcher test (carryover AC1), +7 `koine-server` config tests;
   `replay.rs`'s carryover AC2 change extended an existing test in place, no
   count change).
