@@ -14,3 +14,6 @@
 | [0010](0010-event-encoding-and-identity.md) | Event encoding and identity | accepted | 2026-07-18 |
 | [0011](0011-dispatch-atomicity-and-lease-ephemera.md) | Dispatch atomicity and lease ephemera | accepted | 2026-07-18 |
 | [0012](0012-postgres-store-mechanics.md) | Postgres store mechanics | accepted | 2026-07-18 |
+| [0013](0013-wire-contract-v1.md) | Wire contract v1 | accepted | 2026-07-19 |
+| [0014](0014-worker-auth-v1.md) | Worker auth v1 | accepted | 2026-07-19 |
+| [0015](0015-worker-presence-ephemeral.md) | Worker presence as ephemeral state | accepted | 2026-07-19 |
