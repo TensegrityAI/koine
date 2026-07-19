@@ -193,11 +193,14 @@ the honest execution history below.
   "bearer-token interceptor" framing, but worth stating precisely: there is
   no tower/tonic middleware wrapping the service, and the wiki pages say so
   rather than imply a layered interceptor exists.
-- **No checkpoint RPC**: `koine-grpc`'s and `koine-proto`'s crate-level doc
-  comments mention "checkpoints", inherited unedited from an earlier
-  scoping pass; no checkpoint RPC exists in `worker.proto` or anywhere in
-  either crate. Flagged in both new wiki pages rather than silently
-  reflected as delivered.
+- **No checkpoint RPC**: `koine-grpc`'s crate-level doc comment
+  (`Cargo.toml`, `src/lib.rs`) mentions "checkpoints", inherited unedited
+  from an earlier scoping pass; no checkpoint RPC exists in `worker.proto`
+  or anywhere in `koine-grpc` or `koine-proto`. Flagged in `koine-grpc.md`'s
+  Boundaries section rather than silently reflected as delivered. (An
+  earlier draft of this closeout incorrectly attributed the same doc
+  comment to `koine-proto` as well — corrected; `koine-proto`'s own
+  `Cargo.toml`/`src/lib.rs` never mention "checkpoints".)
 - **Carryover AC4 (pool-size knob) not closed this phase** — out of 2A's
   scope per the carryover item's own text; `phase-2-carryover-hardening.md`
   stays in `todo/` with AC4 open, moved to 2B/3.

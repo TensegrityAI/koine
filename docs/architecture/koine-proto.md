@@ -75,8 +75,7 @@ worker client.
   phase-2B benchmarks.
 - No `Enqueue` RPC exists on this contract — jobs enter the event log
   out-of-band (through the use cases directly); the data plane only ever
-  hands out and acks already-enqueued jobs. (The crate-level doc comment
-  in `Cargo.toml`/`src/lib.rs` also mentions "checkpoints"; no checkpoint
-  RPC exists in `worker.proto` or anywhere in this branch — that phrase is
-  aspirational wording left over in the doc comment, not delivered
-  behavior, and should not be read as a real capability.)
+  hands out and acks already-enqueued jobs. No checkpoint RPC exists in
+  `worker.proto` either (`koine-grpc`'s crate-level doc comment mentions
+  "checkpoints" — see [koine-grpc.md](koine-grpc.md)'s Boundaries section;
+  that phrase does not appear anywhere in this crate).
