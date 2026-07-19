@@ -5,6 +5,7 @@
 //! `WorkerServiceClient` talking to a `tonic::transport::Server` — so a
 //! broken (de)serialization, routing, or metadata-plumbing bug would show up
 //! here even though it can't in a direct trait-method test.
+// clippy.toml's allow-expect-in-tests only covers #[test] fns, not shared helpers.
 #![allow(clippy::expect_used)]
 
 use std::future::Future;
