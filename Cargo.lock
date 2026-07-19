@@ -1232,6 +1232,7 @@ name = "koine-grpc"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hyper-util",
  "koine-application",
  "koine-domain",
  "koine-proto",
@@ -1241,6 +1242,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "tower",
  "uuid",
 ]
 

@@ -22,7 +22,13 @@ uuid = "1"
 [dev-dependencies]
 koine-store-memory = { version = "0.1.0", path = "../koine-store-memory" }
 chrono = "0.4"
-tokio = { version = "1", default-features = false, features = ["time"] }
+tokio = { version = "1", default-features = false, features = ["time", "io-util"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
+# Only the wire test needs a real `tonic::transport::Server` (`Server::add_service`
+# is gated behind "router"); the production `[dependencies]` above stays on
+# "transport" + "codegen" only. Cargo unifies both feature sets for test builds.
+tonic = { version = "0.14", default-features = false, features = ["router"] }
 
 [lints]
 workspace = true
