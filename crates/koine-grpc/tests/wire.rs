@@ -420,6 +420,89 @@ async fn stale_ack_returns_conflict() {
 }
 
 #[tokio::test]
+async fn fail_over_the_wire_schedules_retry() {
+    let (mut client, world) = spawn_server().await;
+    let job_id = world.enqueue(payload()).await;
+
+    let mut stream = client
+        .fetch(authed(v1::FetchRequest {
+            queue: world.queue.to_string(),
+            lease_ttl_ms: 30_000,
+        }))
+        .await
+        .expect("fetch stream opens")
+        .into_inner();
+    let job = stream
+        .message()
+        .await
+        .expect("stream item")
+        .expect("job available");
+
+    client
+        .start(authed(v1::StartRequest {
+            job_id: job.job_id.clone(),
+        }))
+        .await
+        .expect("start over the wire");
+
+    let ack = client
+        .fail(authed(v1::FailRequest {
+            job_id: job.job_id.clone(),
+            lease_id: job.lease_id.clone(),
+            error: Some(v1::JobError {
+                kind: "transient".to_string(),
+                message: "connection reset".to_string(),
+                stacktrace: None,
+                retryable: true,
+            }),
+        }))
+        .await
+        .expect("fail over the wire")
+        .into_inner();
+
+    assert_eq!(ack.outcome, v1::AckOutcome::Recorded as i32);
+    let kinds = world.kinds(job_id).await;
+    assert!(
+        kinds.contains(&"failed"),
+        "a retryable failure must record a `failed` event; got {kinds:?}"
+    );
+    assert!(
+        kinds.contains(&"retry_scheduled"),
+        "a retryable failure with attempts remaining must schedule a retry; got {kinds:?}"
+    );
+}
+
+#[tokio::test]
+async fn fail_without_error_is_invalid_argument() {
+    let (mut client, world) = spawn_server().await;
+    let _job_id = world.enqueue(payload()).await;
+
+    let mut stream = client
+        .fetch(authed(v1::FetchRequest {
+            queue: world.queue.to_string(),
+            lease_ttl_ms: 30_000,
+        }))
+        .await
+        .expect("fetch stream opens")
+        .into_inner();
+    let job = stream
+        .message()
+        .await
+        .expect("stream item")
+        .expect("job available");
+
+    let err = client
+        .fail(authed(v1::FailRequest {
+            job_id: job.job_id.clone(),
+            lease_id: job.lease_id.clone(),
+            error: None,
+        }))
+        .await
+        .expect_err("a missing error must be rejected");
+    assert_eq!(err.code(), Code::InvalidArgument);
+}
+
+#[tokio::test]
 async fn fetch_wakes_on_late_enqueue() {
     // A long idle_poll proves that any wakeup faster than it came from the
     // dispatch signal, not the idle-poll fallback re-check.
