@@ -158,6 +158,31 @@ async fn respects_not_before_and_lease_expiry() {
     );
 }
 
+// Ring-3 regression test mirroring `koine-store-memory`'s
+// `extend_lease_rejects_unrepresentable_ttl` (see
+// `retry-policy-ttl-bounds-hardening` AC3 / `phase-2-carryover-hardening`
+// AC1): the memory and Postgres dispatchers share the same
+// `chrono::TimeDelta::from_std` guard, but until now only the memory twin
+// ever exercised `Duration::MAX` — the Postgres path was code-parity, not
+// test-parity. Assertions are unchanged from the memory twin.
+#[tokio::test]
+async fn extend_lease_rejects_unrepresentable_ttl() {
+    let f = fx().await;
+    enqueue(&f, 0, None).await;
+    let claimed = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("job");
+    let err = f
+        .dispatcher
+        .extend_lease(claimed.lease, Duration::MAX)
+        .await
+        .expect_err("must reject");
+    assert!(matches!(err, koine_application::DispatchError::Backend(_)));
+}
+
 #[tokio::test]
 async fn concurrent_claims_get_distinct_jobs() {
     let f = fx().await;
