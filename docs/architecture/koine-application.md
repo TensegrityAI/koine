@@ -15,7 +15,13 @@ crate's job is to load, append, and wrap events with lineage.
   `SinkError` (a failed batch) and `RelayError` (`Sink` plus adapter
   `Backend` failure) covering the failure modes — `Clock` (`now`),
   `IdGenerator` (`job_id`, `event_id`, `lease_id`, `correlation_id`,
-  `jitter_seed`). All five are `Send + Sync` traits using native
+  `jitter_seed`). Phase 2A added two more: `DispatchSignal` (`notify(queue)`,
+  `wait(queue, timeout)`) — the wakeup channel `koine-grpc`'s `Fetch` stream
+  waits on instead of polling hot; spurious wakeups are allowed and a
+  `notify()` racing ahead of a `wait()` may be missed, so callers rely on
+  the timeout backstop and re-check by claiming — and `WorkerPresence`
+  (`seen(worker, queue)`) — ephemeral liveness tracking with no domain
+  event (ADR 0015). All seven are `Send + Sync` traits using native
   async-fn-in-trait (`-> impl Future<Output = ...> + Send`), so calls
   dispatch statically with no boxed futures.
 - **Composite-operation contracts live in the adapter, not the use case**
@@ -66,13 +72,20 @@ crate's job is to load, append, and wrap events with lineage.
 - ADR 0011 — names exactly which composite operations the adapter owns
   ((a) append + index update, (b) claim + append + index update) and that
   lease extension is ephemeral and event-free.
+- ADR 0013 — `DispatchSignal` exists so `koine-grpc`'s `Fetch` stream can
+  wake on new work instead of polling a drained queue.
+- ADR 0015 — `WorkerPresence` is ephemeral infrastructure state, like lease
+  deadlines (ADR 0011-c): no domain event, no aggregate, no stream.
 
 ## Boundaries
 
 - Depends on `koine-domain` only.
-- Defines the ports; `koine-store-memory` (today) and `koine-store-postgres`
-  (phase 1B) implement them. Driving adapters (`koine-grpc`, `koine-http`,
-  `koine-mcp`, `koine-cli`) call the use cases in this crate.
+- Defines the ports; `koine-store-memory` and `koine-store-postgres`
+  implement all seven (including the phase-2A `DispatchSignal`/
+  `WorkerPresence` pair — `NotifySignal`/`NoopPresence` and `PgSignal`/
+  `PgPresence` respectively). Driving adapters (`koine-grpc` since phase
+  2A; `koine-http`, `koine-mcp`, `koine-cli` still stubs) call the use
+  cases in this crate.
 - The outbox consumer port shipped in phase 1B as `EventSink` (superseding
   this page's earlier `OutboxRelay` placeholder name); a `ProjectionStore`
   port for the async projection tier (history, metrics, dashboard) is still

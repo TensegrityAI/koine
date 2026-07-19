@@ -3,12 +3,13 @@
 ## What it does
 
 The production driven adapter: `PostgresEventStore` (`EventStore`),
-`PostgresDispatcher` (`Dispatcher`), and `PostgresOutboxRelay` (delivers to an
-`EventSink`), plus `rebuild_dispatch` (replay-from-zero ops tool) and
-`connect_pool` (the one entry point composition roots use — connects and runs
-the embedded `sqlx::migrate!` migrations). It is the durable twin of
-`koine-store-memory`: the same two composite contracts (ADR 0011), a real
-transaction standing in for the mutex guard.
+`PostgresDispatcher` (`Dispatcher`), `PostgresOutboxRelay` (delivers to an
+`EventSink`), `PgSignal` (`DispatchSignal`, phase 2A), and `PgPresence`
+(`WorkerPresence`, phase 2A), plus `rebuild_dispatch` (replay-from-zero ops
+tool) and `connect_pool` (the one entry point composition roots use —
+connects and runs the embedded `sqlx::migrate!` migrations). It is the
+durable twin of `koine-store-memory`: the same two composite contracts
+(ADR 0011), a real transaction standing in for the mutex guard.
 
 ## How it is built
 
@@ -21,7 +22,34 @@ transaction standing in for the mutex guard.
   envelope `JSONB` for cheap relay delivery). Two partial indexes carry the
   hot paths: `dispatch_claim_idx` on `(queue, priority DESC, seq) WHERE
   lease_id IS NULL` (the claim) and `dispatch_expiry_idx` on `(lease_expires_at)
-  WHERE lease_id IS NOT NULL` (the sweep).
+  WHERE lease_id IS NOT NULL` (the sweep). **`migrations/0002_worker_presence.sql`**
+  (phase 2A) adds `event_store.workers` (`worker_id` PK, `first_seen`,
+  `last_seen`, `last_queue` — ADR 0015): no indexes beyond the primary key,
+  since it's read by ad hoc operator queries (`WHERE last_seen > now() -
+  interval '1 minute'`), not a hot path.
+- **`PgSignal` notifies in-transaction** (`store.rs::project_in_tx`) — every
+  time a job's dispatch row is (re-)inserted into `Pending` (fresh enqueue or
+  a retry landing back in `Pending`), the same transaction runs `SELECT
+  pg_notify('koine_dispatch', $1)` with the queue name as payload — so a
+  waiting `Fetch` stream only wakes when there is actually new claimable
+  work, and only once the transaction that created it commits. `PgSignal::
+  wait` (`signal.rs`) opens a `PgListener`, `LISTEN`s on `koine_dispatch`,
+  and loops `recv()` until a notification for the right queue arrives or the
+  timeout elapses — the **entire** operation (pool acquire, listen, recv
+  loop) is wrapped in one outer `tokio::time::timeout`, not just the
+  individual `recv()` calls, so a slow pool acquire can't make the caller
+  wait past its budget (a fix made during review). Contrast with
+  `koine-store-memory`'s `NotifySignal`: the memory store's `append` never
+  calls `notify` itself, only this crate's does — a caller building a
+  memory-backed `Fetch` stream must signal manually (documented on that
+  page).
+- **`PgPresence` is best-effort by design** (`presence.rs`) — `seen` upserts
+  `event_store.workers` (`last_seen = now()`, `last_queue` via `COALESCE`
+  so a call with `queue: None` doesn't clobber the last known queue) and
+  silently swallows any DB error: presence tracking must never fail or slow
+  down a worker's request (ADR 0015). There is no retry, no logging, no
+  propagated failure — a dropped presence update is invisible by design,
+  not a bug.
 - **Append is one transaction** (`store.rs::append_in_tx`) — explicit
   `SELECT max(version)` against the expected version (races resolved by the
   unique-constraint mapping Postgres error `23505` on
@@ -76,6 +104,12 @@ transaction standing in for the mutex guard.
 - ADR 0012 — the schema shape, the append/claim transaction mechanics, why
   the relay is claim-delete instead of position-tracking, and why queries are
   runtime, not compile-time-checked.
+- ADR 0013 — `PgSignal` is the production `DispatchSignal`: Postgres
+  `LISTEN`/`NOTIFY` is what lets `koine-grpc`'s `Fetch` stream push instead
+  of poll.
+- ADR 0015 — `PgPresence`/`event_store.workers` is the durable half of
+  ephemeral worker presence: no domain event, no aggregate, survives
+  restarts as rows filtered by `last_seen`.
 
 ## Boundaries
 
@@ -83,11 +117,19 @@ transaction standing in for the mutex guard.
   (folds `Job`, emits `JobEvent`); no crate above it in the hexagon may bypass
   these ports to reach `sqlx` directly (ADR 0003).
 - Requires Postgres — exercised at 11 (testcontainers-modules' default image,
-  ring 3) through 17 (the `koine-server dev-loop` manual run); the schema's
-  floor is native `GENERATED ALWAYS AS IDENTITY` columns (PG 10+).
+  ring 3) through 17 (the `koine-server dev-loop`/`serve` manual runs); the
+  schema's floor is native `GENERATED ALWAYS AS IDENTITY` columns (PG 10+).
 - `koine-store-memory` is the behavioral twin: the crash-recovery lifecycle
   suite (`tests/lifecycle.rs`) mirrors `koine-store-memory`'s ring-2 story
-  test-for-test against real SQL (ring 3).
+  test-for-test against real SQL (ring 3); `tests/signal.rs` (phase 2A)
+  covers `PgSignal`/`PgPresence` the same way (`signal_wait_wakes_on_
+  append_to_queue`, `signal_wait_on_other_queue_times_out`,
+  `presence_records_worker_with_queue`).
+- Consumed (phase 2A) as a `[dev-dependencies]` of `koine-grpc`, whose
+  `tests/grpc_e2e.rs` binds a real `tonic` server to a real TCP port over
+  this crate's Postgres adapters — the only suite in the workspace
+  exercising the gRPC surface against real transport *and* real Postgres
+  simultaneously.
 - The outbox relay is single-instance by design (ADR 0012); consumer
   positions and relay concurrency are deferred to phase 3's real read
   projections. A sink that fails every batch forever (a poison envelope) has

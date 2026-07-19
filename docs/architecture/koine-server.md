@@ -4,11 +4,13 @@
 
 The composition root: the one crate that wires concrete driven adapters to
 the application core and owns the production `Clock`/`IdGenerator`
-implementations. Today it is a single binary with one subcommand, `dev-loop`,
-that drives the whole 1B stack — enqueue, worker, sweep, outbox relay — against
-a real Postgres and prints each job's recorded story; that run is the
-product-level proof behind the phase's Definition of Done ("exercised as a
-product", not only through unit tests).
+implementations. It is a single binary with two subcommands: `dev-loop`,
+which drives the 1B stack — enqueue, worker, sweep, outbox relay — against a
+real Postgres and prints each job's recorded story (the product-level proof
+behind phase 1B's Definition of Done), and (phase 2A) `serve`, the real
+authenticated `gRPC` data-plane server: it wires the Postgres adapters to
+`koine-grpc`'s `WorkerService`, keeps leases and dispatch honest with two
+background tickers, and serves worker traffic until `Ctrl-C`.
 
 ## How it is built
 
@@ -19,8 +21,33 @@ product", not only through unit tests).
   of the two ports `koine-domain` is never allowed to touch directly (ADR
   0010).
 - **`main.rs`** — reads `argv[1]`; `dev-loop` reads `DATABASE_URL` (falling
-  back to a local default) and runs `dev_loop::run`, mapping its `Result` to
-  `ExitCode::SUCCESS`/`FAILURE`; anything else prints a one-line banner.
+  back to a local default) and runs `dev_loop::run`; `serve` (phase 2A) runs
+  `serve::run` with no arguments (its own configuration comes entirely from
+  environment variables); either maps its `Result` to
+  `ExitCode::SUCCESS`/`FAILURE`; anything else prints a one-line banner
+  listing both commands.
+- **`serve.rs`** (phase 2A) — `parse_config` reads `KOINE_WORKER_TOKEN`
+  (required — a missing *or empty* value refuses to start, since shell
+  interpolation of an unset variable silently yields `""` and starting
+  anyway would launch a server whose auth is quietly disabled), plus
+  optional `DATABASE_URL`, `KOINE_GRPC_ADDR` (default `0.0.0.0:7419`),
+  `KOINE_MAX_LEASE_TTL_MS` (default 300000 — the ceiling every requested
+  lease is clamped to), and `KOINE_IDLE_POLL_MS` (default 1000 — the
+  drained-`Fetch` fallback poll). `run` then: connects/migrates via
+  `connect_pool`; spawns two detached `tokio::spawn` tickers on a shared
+  500ms `tokio::time::interval` — one running `SweepExpiredLeases` (reclaims
+  expired leases so a crashed worker's job becomes claimable again with no
+  separate process, ADR 0008), one running `PostgresOutboxRelay::relay_once`
+  into `PrintingSink` at a 64-envelope batch size; builds `Deps` from
+  `PostgresEventStore`/`PostgresDispatcher`/`PgSignal`/`PgPresence`/
+  `UuidV7Ids`/`SystemClock` plus the parsed `GrpcConfig`; and serves
+  `koine_grpc::server(deps)` via `tonic::transport::Server::builder()
+  .serve_with_shutdown(addr, ctrl_c)` — a clean shutdown on `Ctrl-C`, not a
+  hard kill.
+- **`sinks.rs`** (phase 2A) — `PrintingSink`, the `EventSink` that prints
+  each delivered envelope's stream/version/kind, promoted out of `dev_loop.rs`
+  into its own module so both `dev-loop` and `serve` share the one
+  implementation instead of two copies.
 - **`dev_loop.rs`** — `connect_pool` then builds one `Arc<PostgresEventStore>`,
   `Arc<PostgresDispatcher<UuidV7Ids, SystemClock>>`, and a
   `PostgresOutboxRelay` over the same pool; `enqueue_dev_jobs` enqueues three
@@ -41,11 +68,15 @@ product", not only through unit tests).
 - ADR 0003 — the hexagon is compiled; `koine-server` is deliberately the only
   crate allowed to see every adapter at once, wiring them behind the ports
   `koine-application` defines.
-- The dev-loop's existence is itself the phase's DoD item 2 (exercised as a
+- The dev-loop's existence is itself phase 1B's DoD item 2 (exercised as a
   product): a passing `cargo test --workspace` proves the ports compose, but
   only a real run against a real database proves the transactions, the
   `SKIP LOCKED` claim, and the outbox relay behave under an actual crash/retry
   story end to end.
+- ADR 0014 — `serve` refuses to start without `KOINE_WORKER_TOKEN`: the data
+  plane must never run unauthenticated, so a misconfigured deployment fails
+  fast at startup instead of quietly serving traffic with a broken auth
+  check.
 
 ## Boundaries
 
@@ -62,6 +93,13 @@ product", not only through unit tests).
 - Grows with each phase: the REST control plane and dashboard arrive in
   phase 3, the MCP adapter in phase 4 — each is wired into this same
   composition root, not a new one.
-- `dev-loop` is a development/exercise command, not a production entry point;
-  phase 2+ adds the real server-mode subcommand(s) that actually serve
-  traffic.
+- `dev-loop` remains a development/exercise command, not a production entry
+  point; `serve` (phase 2A) is the real production entry point that actually
+  serves worker traffic — but only the data plane. `serve` has no unit tests
+  of its own beyond `parse_config`'s env-parsing table (`missing_token_is_
+  refused`, `empty_token_is_refused`, `defaults_apply_when_only_token_is_
+  set`, `overrides_are_parsed`, `invalid_addr_is_rejected`,
+  `invalid_ttl_is_rejected`, `invalid_idle_poll_is_rejected`); its
+  transactional and transport behavior is exercised through `koine-grpc`'s
+  test suites (which build the same `Deps` shape directly) rather than a
+  `serve`-specific integration test.

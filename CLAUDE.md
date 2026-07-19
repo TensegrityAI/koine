@@ -1,9 +1,9 @@
 # CLAUDE.md — Koiné living context
 
-**Current phase: 1 complete — next: phase 2 (data plane)** (see design spec
-§6 for all phases).
+**Current phase: 2A complete — next: phase 2B (Python SDK, ring-4
+conformance, benchmarks)** (see design spec §6 for all phases).
 
-Active plan: `docs/superpowers/plans/2026-07-19-koine-phase-2a-data-plane-server.md`.
+Active plan: none — phase 2B plan not yet written (pending).
 
 ## Quick orientation
 
@@ -23,3 +23,4 @@ Active plan: `docs/superpowers/plans/2026-07-19-koine-phase-2a-data-plane-server
 - 2026-07-17 — ROADMAP.md + epics for phases 1-5 committed. Next: phase 1 detailed implementation plan (starts with the event-schema ADR), then execution.
 - 2026-07-18 — Phase 1A complete: event-sourced domain core green on rings 1–2. Next: phase 1B plan (Postgres store, outbox, dispatch projection, ring 3).
 - 2026-07-18 — Phase 1B complete: Postgres store, outbox relay, ring 3, dev-loop. PHASE 1 COMPLETE. Next: phase 2 plan (TLA+ model first — epic item 1).
+- 2026-07-19 — Phase 2A complete: TLA+ lease-protocol model TLC-checked in CI (`tla` job); `koine.v1` wire contract (`koine-proto`); authenticated `gRPC` data-plane server (`koine-grpc` + `koine-server serve`) with `DispatchSignal`/`WorkerPresence` ports, Postgres `LISTEN`/`NOTIFY` wakeup, worker presence table; crash recovery proven over a real socket + real Postgres. Epic items 1–6 delivered; carryover-hardening ACs 1–3 closed (AC4 deferred to 2B/3). Next: phase 2B plan (Python SDK, ring-4 conformance suite, benchmarks, crates.io publication).

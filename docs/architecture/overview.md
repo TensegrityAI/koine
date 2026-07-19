@@ -7,11 +7,15 @@ job is the source of truth (ADR 0004): all state derives from an append-only
 event log, which makes traceability, replay, and repair-&-resume structural
 properties rather than features bolted on.
 
-**Status: phase 1B — phase 1 complete.** The workspace, boundaries, and
-governance below exist; `koine-domain`, `koine-application`,
-`koine-store-memory`, `koine-store-postgres`, and `koine-server` now have real
-behavior (see the crate table and their pages below). Remaining crates are
-still documented stubs; behavior arrives per phase (design spec §6).
+**Status: phase 2A — phase 1 complete, data plane server delivered.** The
+workspace, boundaries, and governance below exist; `koine-domain`,
+`koine-application`, `koine-store-memory`, `koine-store-postgres`,
+`koine-proto`, `koine-grpc`, and `koine-server` now have real behavior (see
+the crate table and their pages below). The data plane is a real,
+authenticated `gRPC` server today (`koine-server serve`), not only a design.
+Remaining crates (the control plane: `koine-http`, `koine-cli`, `koine-mcp`,
+plus `koine-observability`) are still documented stubs; behavior arrives per
+phase (design spec §6).
 
 ## How it is shaped
 
@@ -31,15 +35,25 @@ Two planes over a strict hexagonal core (ADR 0007):
                    └──────┬─────────────────────────────┘
    DATA PLANE             │ Postgres (event log = truth)
         ┌─────────────────┴──────────┐
-        │  gRPC bidi-stream           │
+        │ gRPC: server-stream Fetch  │
+        │  + unary Start/Ack/Beat    │
         ▼                             ▼
    Python worker                 Go/Node/… worker
 ```
 
 - **Data plane** (workers; high volume, long-lived): gRPC with a versioned
-  proto contract — SDKs are generated, not reverse-engineered.
+  proto contract (`koine.v1`, `koine-proto`) — SDKs are generated, not
+  reverse-engineered. Delivered in phase 2A as `koine-grpc` +
+  `koine-server serve`: a long-lived server-streaming `Fetch` plus unary
+  `Start`/`Succeed`/`Fail`/`Heartbeat` — this diagram originally showed a
+  full bidi-stream; ADR 0013 records the divergence and its revisit
+  trigger (phase-2B benchmarks). Authenticated per ADR 0014 (shared bearer
+  token; TLS is proxy-terminated, not native); wakeup is push-based via
+  Postgres `LISTEN`/`NOTIFY` with a polling backstop (`DispatchSignal`,
+  see [koine-application.md](koine-application.md)).
 - **Control plane** (producers, operators, agents): REST + OpenAPI, the
-  operator CLI, and an MCP adapter so agents operate the broker first-class.
+  operator CLI, and an MCP adapter so agents operate the broker first-class
+  — still phase 3+ documented stubs.
 
 ## The crates
 
@@ -50,16 +64,16 @@ adapters ← server.
 | Crate | Layer | Role (stubs marked with the phase real behavior arrives) |
 | --- | --- | --- |
 | `koine-domain` | Domain | Aggregates, events, state machines. No async, no I/O — see [koine-domain.md](koine-domain.md) |
-| `koine-application` | Application | Use cases + driven ports (`EventStore`, `Dispatcher`, `Clock`, `IdGenerator`); `OutboxRelay`/`ProjectionStore` land in 1B — see [koine-application.md](koine-application.md) |
-| `koine-store-postgres` | Driven | Event store, transactional outbox, dispatch projection — see [koine-store-postgres.md](koine-store-postgres.md) |
+| `koine-application` | Application | Use cases + driven ports (`EventStore`, `Dispatcher`, `Clock`, `IdGenerator`, `DispatchSignal`, `WorkerPresence`) — see [koine-application.md](koine-application.md) |
+| `koine-store-postgres` | Driven | Event store, transactional outbox, dispatch projection, `LISTEN`/`NOTIFY` signal, worker presence — see [koine-store-postgres.md](koine-store-postgres.md) |
 | `koine-store-memory` | Driven | Full in-memory port implementations for tests — see [koine-store-memory.md](koine-store-memory.md) |
-| `koine-proto` | Contract | Versioned protobuf wire contract, standalone (phase 2) |
-| `koine-grpc` | Driving | Data plane adapter (phase 2) |
+| `koine-proto` | Contract | `koine.v1` versioned protobuf wire contract, standalone — see [koine-proto.md](koine-proto.md) |
+| `koine-grpc` | Driving | Data plane adapter: authenticated `WorkerService` — see [koine-grpc.md](koine-grpc.md) |
 | `koine-http` | Driving | Control plane REST + embedded dashboard (phase 3) |
 | `koine-observability` | Infra | OTel/Prometheus init (phase 3) |
 | `koine-cli` | Binary | Operator CLI (phase 3) |
 | `koine-mcp` | Driving | Agent control plane (phase 4) |
-| `koine-server` | Binary | Composition root; `dev-loop` (phase 1B) — grows with each phase — see [koine-server.md](koine-server.md) |
+| `koine-server` | Binary | Composition root; `dev-loop`; authenticated `serve` (phase 2A) — grows with each phase — see [koine-server.md](koine-server.md) |
 
 ## Why: the load-bearing decisions
 
@@ -72,12 +86,19 @@ adapters ← server.
   ADR 0006
 - At-least-once delivery with leases and heartbeats; late acks become
   conflict events, never lost information — ADR 0008
+- `koine.v1` wire contract: server-streaming `Fetch` + unary acks, JSON
+  payloads, additive-only evolution — ADR 0013
+- Worker auth v1: single shared bearer token, proxy-terminated TLS — ADR 0014
+- Worker presence is ephemeral infrastructure state, not an event-sourced
+  aggregate — ADR 0015
 - Full index: [docs/adr/INDEX.md](../adr/INDEX.md)
 
 ## Boundaries with the outside
 
 - **Postgres** is the only required runtime dependency (ADR 0005).
-- Workers in any language speak the `koine-proto` contract; a conformance
-  suite (phase 2) is the polyglot promise made verifiable.
+- Workers in any language speak the `koine-proto` contract, enforced today
+  by a real server (`koine-grpc` + `koine-server serve`); a ring-4
+  conformance suite against a generated SDK (phase 2B) is the polyglot
+  promise's compatibility gate, not yet built.
 - The dashboard (phase 3) is a static SPA embedded in `koine-server` — the
   deploy story stays single-binary (ADR 0009).
