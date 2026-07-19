@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package koine.v1;
+
+// Koiné data plane v1 (ADR 0013). Field numbers are wire contract:
+// additive-only within v1; removed fields become `reserved`.
+
+service WorkerService {
+  // Long-lived stream of claimed jobs for one worker on one queue.
+  // Worker identity and auth ride the request metadata (ADR 0014).
+  rpc Fetch(FetchRequest) returns (stream LeasedJob);
+  rpc Start(StartRequest) returns (StartResponse);
+  rpc Succeed(SucceedRequest) returns (AckResponse);
+  rpc Fail(FailRequest) returns (AckResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message FetchRequest {
+  string queue = 1;
+  // Lease TTL granted per claimed job; server clamps to its ceiling.
+  uint64 lease_ttl_ms = 2;
+}
+
+message LeasedJob {
+  string job_id = 1;          // UUID
+  string queue = 2;
+  string payload_json = 3;    // opaque JSON (ADR 0013)
+  uint32 attempt = 4;         // completed attempts before this lease
+  string lease_id = 5;        // UUID — ack with exactly this
+  int64 expires_at_unix_ms = 6;
+  string correlation_id = 7;  // UUID
+  optional string traceparent = 8;
+}
+
+message StartRequest {
+  string job_id = 1;
+}
+message StartResponse {}
+
+message SucceedRequest {
+  string job_id = 1;
+  string lease_id = 2;
+  optional string result_json = 3;
+}
+
+message FailRequest {
+  string job_id = 1;
+  string lease_id = 2;
+  JobError error = 3;
+}
+
+message JobError {
+  string kind = 1;
+  string message = 2;
+  optional string stacktrace = 3;
+  bool retryable = 4;
+}
+
+enum AckOutcome {
+  ACK_OUTCOME_UNSPECIFIED = 0;
+  ACK_OUTCOME_RECORDED = 1;
+  // Lease no longer held: recorded as late_ack_conflict, never lost.
+  ACK_OUTCOME_CONFLICT = 2;
+}
+
+message AckResponse {
+  AckOutcome outcome = 1;
+}
+
+message HeartbeatRequest {
+  string lease_id = 1;
+  uint64 ttl_ms = 2;
+}
+message HeartbeatResponse {
+  // false = lease gone; the worker must stop working this job.
+  bool alive = 1;
+}
