@@ -73,10 +73,11 @@
 
 ## Dependencies
 
-- None blocking — AC1/AC2 are test-only additions; AC3/AC4 touch
-  `koine-server`'s manifest and `koine-store-postgres`'s `connect_pool`
-  signature (a breaking change for any caller — currently only
-  `koine-server`).
+- None blocking — AC1/AC2 are test-only additions; AC3 touches
+  `koine-server`'s, `koine-store-memory`'s, `koine-store-postgres`'s, and
+  `koine-proto`'s manifests; AC4 touches `koine-store-postgres`'s
+  `connect_pool` signature (a breaking change for any caller — currently
+  only `koine-server`).
 
 ## Evidence (filled at close)
 

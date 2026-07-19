@@ -33,10 +33,11 @@ md:
 # phase-2-carryover-hardening AC3. Not auto-installed (unlike `make tla`'s
 # jar download) because `cargo install` recompiles a whole tool on a cache
 # miss, which is too slow to hide inside a target run on every `make ci`;
-# install once with: cargo install cargo-machete --locked
+# install once with: cargo install cargo-machete --version 0.9.2 --locked
+# (CI's `unused-deps` job pins the same version — keep both in sync).
 machete:
 	@command -v cargo-machete >/dev/null 2>&1 || { \
-		echo "cargo-machete not found — install with: cargo install cargo-machete --locked"; \
+		echo "cargo-machete not found — install with: cargo install cargo-machete --version 0.9.2 --locked"; \
 		exit 1; \
 	}
 	cargo machete

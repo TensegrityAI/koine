@@ -1,4 +1,4 @@
-//! Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats, checkpoints over `gRPC`.
+//! Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats over `gRPC`.
 
 pub mod auth;
 pub mod service;

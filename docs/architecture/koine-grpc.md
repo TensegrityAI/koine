@@ -100,7 +100,5 @@ one crate a worker in any language actually talks to.
   duplication is a recorded phase-2B dedup follow-up, not an oversight).
 - No `Enqueue` RPC — a worker only ever fetches/acks jobs someone else
   enqueued through the use cases directly.
-- The crate-level doc comment (`Cargo.toml`, `src/lib.rs`) mentions
-  "checkpoints"; no checkpoint RPC exists in `koine-proto`'s
-  `worker.proto` or anywhere in this crate — that phrase is aspirational
-  wording, not delivered behavior.
+- No checkpoint RPC exists in `koine-proto`'s `worker.proto` or anywhere in
+  this crate.

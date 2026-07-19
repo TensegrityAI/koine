@@ -194,13 +194,18 @@ the honest execution history below.
   no tower/tonic middleware wrapping the service, and the wiki pages say so
   rather than imply a layered interceptor exists.
 - **No checkpoint RPC**: `koine-grpc`'s crate-level doc comment
-  (`Cargo.toml`, `src/lib.rs`) mentions "checkpoints", inherited unedited
+  (`Cargo.toml`, `src/lib.rs`) mentioned "checkpoints", inherited unedited
   from an earlier scoping pass; no checkpoint RPC exists in `worker.proto`
   or anywhere in `koine-grpc` or `koine-proto`. Flagged in `koine-grpc.md`'s
-  Boundaries section rather than silently reflected as delivered. (An
-  earlier draft of this closeout incorrectly attributed the same doc
-  comment to `koine-proto` as well — corrected; `koine-proto`'s own
-  `Cargo.toml`/`src/lib.rs` never mention "checkpoints".)
+  Boundaries section rather than silently reflected as delivered, and
+  **fixed pre-merge in the final-review round** (see
+  `.superpowers/sdd/task-10-report.md`'s Final-review fix round section):
+  the doc comment no longer mentions checkpoints, and the `koine-grpc.md`/
+  `koine-proto.md` Boundaries notes that disclosed the mismatch were
+  updated to drop the now-resolved disclosure. (An earlier draft of this
+  closeout incorrectly attributed the same doc comment to `koine-proto` as
+  well — corrected; `koine-proto`'s own `Cargo.toml`/`src/lib.rs` never
+  mentioned "checkpoints".)
 - **Carryover AC4 (pool-size knob) not closed this phase** — out of 2A's
   scope per the carryover item's own text; `phase-2-carryover-hardening.md`
   stays in `todo/` with AC4 open, moved to 2B/3.
