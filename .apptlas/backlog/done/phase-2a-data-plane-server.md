@@ -21,9 +21,11 @@
   (the `tla` job, `.github/workflows/ci.yml`, `actions/setup-java@v4`
   Temurin 21) and locally via `make tla` — *verify:* `make tla` → "Model
   checking completed. No error has been found." (611 states generated, 184
-  distinct, search depth 12, re-run at this closeout); CI run id: **pending
-  merge CI run** (this branch's own `tla` job has not yet run against the
-  merged main branch at closeout time).
+  distinct, search depth 12, re-run at this closeout); CI: run 29681915758
+  on merged main (`872aa72`), all 10 jobs green incl. `tla`. (The first
+  post-merge run, 29681765323, failed on the three workspace-compiling jobs
+  because the runner image lacks `protoc` — fixed in `872aa72` by installing
+  `protobuf-compiler` in those jobs; local runs never hit it.)
 - [x] AC2: the `koine.v1` wire contract compiles and is additive-only by
   policy — *verify:* `cargo build -p koine-proto`; `proto/koine/v1/worker.proto`
   documents the additive-only/`reserved` policy in its header comment; ADR
@@ -150,10 +152,8 @@ Model checking completed. No error has been found.
 The depth of the complete state graph search is 12.
 ```
 
-CI's own `tla` job on this branch's final commit has not yet produced a run
-id at the time of this writing — **pending merge CI run**; the identical
-`make tla` invocation is what that job runs, so the local result above is
-the same check.
+CI's `tla` job ran the identical invocation on merged main: run 29681915758
+(`872aa72`), success — alongside the other 9 jobs, all green.
 
 **AC8 — crash-recovery-over-the-wire arc (loaded back from real Postgres,
 `crash_recovery_over_the_wire`):**
