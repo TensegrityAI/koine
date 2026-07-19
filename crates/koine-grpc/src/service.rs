@@ -309,7 +309,7 @@ where
         auth::check(request.metadata(), &self.deps.config.token)?;
         let req = request.into_inner();
         let lease_id = LeaseId::new(parse_uuid("lease_id", &req.lease_id)?);
-        let ttl = Duration::from_millis(req.ttl_ms);
+        let ttl = clamp_lease_ttl(req.ttl_ms, self.deps.config.max_lease_ttl)?;
 
         let heartbeat = Heartbeat {
             dispatcher: &self.deps.dispatcher,

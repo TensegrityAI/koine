@@ -499,3 +499,61 @@ async fn heartbeat_reports_liveness() {
         .alive;
     assert!(!alive, "a lease past its ttl must report dead");
 }
+
+#[tokio::test]
+async fn heartbeat_ttl_is_clamped_to_ceiling() {
+    let (mut client, world) = spawn_server().await;
+    let _job_id = world.enqueue(payload()).await;
+
+    let mut stream = client
+        .fetch(authed(v1::FetchRequest {
+            queue: world.queue.to_string(),
+            lease_ttl_ms: 30_000,
+        }))
+        .await
+        .expect("fetch stream opens")
+        .into_inner();
+    let job = stream
+        .message()
+        .await
+        .expect("stream item")
+        .expect("job available");
+
+    // ttl_ms == 0 must be rejected outright, mirroring `Fetch`'s clamp
+    // (service.rs's `clamp_lease_ttl` helper).
+    let err = client
+        .heartbeat(authed(v1::HeartbeatRequest {
+            lease_id: job.lease_id.clone(),
+            ttl_ms: 0,
+        }))
+        .await
+        .expect_err("zero ttl must be rejected");
+    assert_eq!(err.code(), Code::InvalidArgument);
+
+    // An absurd ttl must be clamped to the harness's configured
+    // `max_lease_ttl` (1 hour — see `spawn_server_with_idle_poll`), never
+    // honored verbatim: otherwise an authenticated worker heartbeating with
+    // a huge ttl_ms could pin a lease far beyond the operator ceiling and
+    // defeat the sweep.
+    let alive = client
+        .heartbeat(authed(v1::HeartbeatRequest {
+            lease_id: job.lease_id.clone(),
+            ttl_ms: u64::MAX / 1000,
+        }))
+        .await
+        .expect("heartbeat over the wire")
+        .into_inner()
+        .alive;
+    assert!(alive, "a freshly (re)extended lease must report alive");
+
+    // Advance well past the ceiling (1 hour) plus margin. If the absurd ttl
+    // above had been honored verbatim, the lease would still be alive here
+    // and the sweep would find nothing to reclaim; clamped to the ceiling,
+    // the lease expired over an hour ago and the sweep reclaims it.
+    world.clock.advance(Duration::from_secs(3_700));
+    let swept = world.sweeper().execute().await.expect("sweep");
+    assert_eq!(
+        swept, 1,
+        "the heartbeat-extended lease must not survive past max_lease_ttl from the heartbeat"
+    );
+}
