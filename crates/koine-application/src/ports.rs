@@ -167,3 +167,19 @@ pub trait IdGenerator: Send + Sync {
     /// collisions).
     fn jitter_seed(&self) -> u64;
 }
+
+/// Wakeup channel for dispatch availability (fetch streams, ADR 0013).
+pub trait DispatchSignal: Send + Sync {
+    /// Announces that `queue` may have claimable work.
+    fn notify(&self, queue: &QueueName) -> impl Future<Output = ()> + Send;
+    /// Waits until `queue` is signaled or `timeout` elapses. Spurious
+    /// wakeups are allowed; callers re-check by claiming.
+    fn wait(&self, queue: &QueueName, timeout: Duration) -> impl Future<Output = ()> + Send;
+}
+
+/// Ephemeral worker presence (ADR 0015).
+pub trait WorkerPresence: Send + Sync {
+    /// Records that `worker` was seen now (optionally on `queue`).
+    fn seen(&self, worker: &WorkerId, queue: Option<&QueueName>)
+    -> impl Future<Output = ()> + Send;
+}
