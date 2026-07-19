@@ -1,14 +1,8 @@
 //! Postgres dispatch signal using NOTIFY/LISTEN.
-//!
-//! Note: This module uses the RPITIT pattern for trait implementations
-//! (`impl Future<Output = ()> + Send`), which necessarily produces `manual_async_fn`.
-
-#![allow(clippy::manual_async_fn)]
 
 use koine_application::ports::DispatchSignal;
 use koine_domain::QueueName;
 use sqlx::PgPool;
-use std::future::Future;
 use std::time::Duration;
 
 /// Postgres-backed dispatch signal using NOTIFY/LISTEN.
@@ -25,21 +19,21 @@ impl PgSignal {
 }
 
 impl DispatchSignal for PgSignal {
-    fn notify(&self, queue: &QueueName) -> impl Future<Output = ()> + Send {
+    async fn notify(&self, queue: &QueueName) {
         let pool = self.pool.clone();
         let queue_str = queue.as_str().to_string();
-        async move {
-            let _ = sqlx::query("SELECT pg_notify('koine_dispatch', $1)")
-                .bind(queue_str)
-                .execute(&pool)
-                .await;
-        }
+        let _ = sqlx::query("SELECT pg_notify('koine_dispatch', $1)")
+            .bind(queue_str)
+            .execute(&pool)
+            .await;
     }
 
-    fn wait(&self, queue: &QueueName, timeout: Duration) -> impl Future<Output = ()> + Send {
+    async fn wait(&self, queue: &QueueName, timeout: Duration) {
         let pool = self.pool.clone();
         let queue_str = queue.as_str().to_string();
-        async move {
+        // Wrap the entire operation (connect, listen, recv loop) in the timeout budget.
+        // This ensures a slow pool acquire respects the caller's timeout.
+        let _ = tokio::time::timeout(timeout, async {
             if let Ok(mut listener) = sqlx::postgres::PgListener::connect_with(&pool).await {
                 let _ = listener.listen("koine_dispatch").await;
                 let mut remaining = timeout;
@@ -59,6 +53,7 @@ impl DispatchSignal for PgSignal {
                     }
                 }
             }
-        }
+        })
+        .await;
     }
 }

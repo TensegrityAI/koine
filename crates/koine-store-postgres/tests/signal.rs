@@ -14,6 +14,14 @@ use koine_store_postgres::{PgPresence, PgSignal, PostgresEventStore};
 use std::sync::Arc;
 use std::time::Duration;
 
+// Type alias for presence row with timestamps
+type PresenceRow = (
+    String,
+    chrono::DateTime<chrono::Utc>,
+    chrono::DateTime<chrono::Utc>,
+    Option<String>,
+);
+
 struct Fx {
     _guard: testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
     pool: sqlx::PgPool,
@@ -128,13 +136,18 @@ async fn presence_records_worker_with_queue() {
     let worker = f.worker.clone();
     let queue = f.queue.clone();
 
-    // Record presence twice
-    f.presence.seen(&worker, Some(&queue)).await;
+    // Record presence with a queue
     f.presence.seen(&worker, Some(&queue)).await;
 
-    // Query the table directly to verify
-    let rows: Vec<(String, Option<String>)> = sqlx::query_as(
-        "SELECT worker_id, last_queue FROM event_store.workers WHERE worker_id = $1",
+    // Sleep to ensure time gap between seen calls
+    tokio::time::sleep(Duration::from_millis(20)).await;
+
+    // Record presence again
+    f.presence.seen(&worker, Some(&queue)).await;
+
+    // Query the table directly to verify last_seen and first_seen advanced
+    let rows: Vec<PresenceRow> = sqlx::query_as(
+        "SELECT worker_id, first_seen, last_seen, last_queue FROM event_store.workers WHERE worker_id = $1",
     )
     .bind(worker.as_str())
     .fetch_all(&f.pool)
@@ -143,9 +156,32 @@ async fn presence_records_worker_with_queue() {
 
     assert_eq!(rows.len(), 1, "exactly one worker row");
     assert_eq!(rows[0].0, worker.as_str(), "worker_id matches");
+    assert!(rows[0].2 >= rows[0].1, "last_seen >= first_seen");
+    assert!(
+        rows[0].2 > rows[0].1,
+        "last_seen > first_seen (time gap between seen calls)"
+    );
     assert_eq!(
-        rows[0].1,
+        rows[0].3,
         Some(queue.as_str().to_string()),
         "last_queue set"
+    );
+
+    // Record presence without a queue; last_queue should be preserved via COALESCE
+    f.presence.seen(&worker, None).await;
+
+    let rows_after: Vec<(String, Option<String>)> = sqlx::query_as(
+        "SELECT worker_id, last_queue FROM event_store.workers WHERE worker_id = $1",
+    )
+    .bind(worker.as_str())
+    .fetch_all(&f.pool)
+    .await
+    .expect("query");
+
+    assert_eq!(rows_after.len(), 1, "still exactly one worker row");
+    assert_eq!(
+        rows_after[0].1,
+        Some(queue.as_str().to_string()),
+        "last_queue preserved after seen(worker, None)"
     );
 }

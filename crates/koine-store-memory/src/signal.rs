@@ -1,14 +1,8 @@
 //! In-memory dispatch signal and no-op presence adapters for tests.
-//!
-//! Note: This module uses the RPITIT pattern for trait implementations
-//! (`impl Future<Output = ()> + Send`), which necessarily produces `manual_async_fn`.
-
-#![allow(clippy::manual_async_fn)]
 
 use koine_application::ports::{DispatchSignal, WorkerPresence};
 use koine_domain::{QueueName, WorkerId};
 use std::collections::HashMap;
-use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
@@ -35,32 +29,28 @@ impl Default for NotifySignal {
 }
 
 impl DispatchSignal for NotifySignal {
-    fn notify(&self, queue: &QueueName) -> impl Future<Output = ()> + Send {
+    async fn notify(&self, queue: &QueueName) {
         let queue = queue.clone();
         let channels = Arc::clone(&self.channels);
-        async move {
-            let mut map = channels.lock().await;
-            let notify = map
-                .entry(queue)
-                .or_insert_with(|| Arc::new(tokio::sync::Notify::new()))
-                .clone();
-            drop(map);
-            notify.notify_waiters();
-        }
+        let mut map = channels.lock().await;
+        let notify = map
+            .entry(queue)
+            .or_insert_with(|| Arc::new(tokio::sync::Notify::new()))
+            .clone();
+        drop(map);
+        notify.notify_waiters();
     }
 
-    fn wait(&self, queue: &QueueName, timeout: Duration) -> impl Future<Output = ()> + Send {
+    async fn wait(&self, queue: &QueueName, timeout: Duration) {
         let queue = queue.clone();
         let channels = Arc::clone(&self.channels);
-        async move {
-            let notify = {
-                let mut map = channels.lock().await;
-                map.entry(queue)
-                    .or_insert_with(|| Arc::new(tokio::sync::Notify::new()))
-                    .clone()
-            };
-            let _ = tokio::time::timeout(timeout, notify.notified()).await;
-        }
+        let notify = {
+            let mut map = channels.lock().await;
+            map.entry(queue)
+                .or_insert_with(|| Arc::new(tokio::sync::Notify::new()))
+                .clone()
+        };
+        let _ = tokio::time::timeout(timeout, notify.notified()).await;
     }
 }
 
@@ -68,13 +58,7 @@ impl DispatchSignal for NotifySignal {
 pub struct NoopPresence;
 
 impl WorkerPresence for NoopPresence {
-    fn seen(
-        &self,
-        _worker: &WorkerId,
-        _queue: Option<&QueueName>,
-    ) -> impl Future<Output = ()> + Send {
-        async move {}
-    }
+    async fn seen(&self, _worker: &WorkerId, _queue: Option<&QueueName>) {}
 }
 
 #[cfg(test)]

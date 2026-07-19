@@ -173,7 +173,9 @@ pub trait DispatchSignal: Send + Sync {
     /// Announces that `queue` may have claimable work.
     fn notify(&self, queue: &QueueName) -> impl Future<Output = ()> + Send;
     /// Waits until `queue` is signaled or `timeout` elapses. Spurious
-    /// wakeups are allowed; callers re-check by claiming.
+    /// wakeups are allowed; callers re-check by claiming. Note: a
+    /// `notify()` racing ahead of `wait()` may be missed; callers rely on
+    /// the timeout backstop and re-check by claiming.
     fn wait(&self, queue: &QueueName, timeout: Duration) -> impl Future<Output = ()> + Send;
 }
 
