@@ -16,10 +16,14 @@ pub async fn connect_pool(url: &str) -> Result<PgPool, sqlx::Error> {
 }
 
 pub mod dispatcher;
+pub mod presence;
 pub mod relay;
 mod rows;
+pub mod signal;
 pub mod store;
 
 pub use dispatcher::PostgresDispatcher;
+pub use presence::PgPresence;
 pub use relay::PostgresOutboxRelay;
+pub use signal::PgSignal;
 pub use store::{PostgresEventStore, rebuild_dispatch};

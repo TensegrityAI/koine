@@ -1,6 +1,6 @@
 [package]
 name = "koine-grpc"
-description = "Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats, checkpoints over `gRPC`."
+description = "Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats over `gRPC`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,44 @@ authors.workspace = true
 [dependencies]
 koine-domain = { version = "0.1.0", path = "../koine-domain" }
 koine-application = { version = "0.1.0", path = "../koine-application" }
+koine-proto = { version = "0.1.0", path = "../koine-proto" }
+tonic = { version = "0.14", default-features = false, features = ["transport", "codegen"] }
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "macros"] }
+tokio-stream = { version = "0.1", default-features = false, features = ["sync"] }
+serde_json = "1"
+subtle = "2"
+uuid = "1"
+
+[dev-dependencies]
+koine-store-memory = { version = "0.1.0", path = "../koine-store-memory" }
+# Ring-3 gRPC e2e (grpc_e2e.rs) needs the real Postgres adapters — matches
+# koine-store-postgres's own dev-deps versions exactly (same testcontainers
+# instance in the lockfile).
+koine-store-postgres = { version = "0.1.0", path = "../koine-store-postgres" }
+chrono = "0.4"
+tokio = { version = "1", default-features = false, features = ["time", "io-util", "net"] }
+# "net" (grpc_e2e.rs's TcpListenerStream) layered onto the "sync" feature the
+# production `[dependencies]` above already declares; Cargo unifies both
+# feature sets for test builds (same pattern as the `tonic` override below).
+tokio-stream = { version = "0.1", default-features = false, features = ["net"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+hyper-util = { version = "0.1", default-features = false, features = ["tokio"] }
+# Only the wire test needs a real `tonic::transport::Server` (`Server::add_service`
+# is gated behind "router"); the production `[dependencies]` above stays on
+# "transport" + "codegen" only. Cargo unifies both feature sets for test builds.
+tonic = { version = "0.14", default-features = false, features = ["router"] }
+# grpc_e2e.rs's UuidV7Ids copy needs `Uuid::now_v7`; the production
+# `[dependencies]` above stays on default features only.
+uuid = { version = "1", features = ["v7"] }
+# grpc_e2e.rs queries the `workers` table directly to assert presence rows.
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "chrono",
+] }
+testcontainers = "0.27"
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
 
 [lints]
 workspace = true

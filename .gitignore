@@ -3,3 +3,5 @@ _archive/
 target/
 **/*.rs.bk
 .env
+docs/formal/.tools/
+docs/formal/states/

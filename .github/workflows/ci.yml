@@ -28,6 +28,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -48,6 +49,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
 
+  unused-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      # Pinned so CI and local `make machete` install the same tool version
+      # (mirrored in the Makefile's `machete` target comment).
+      - run: cargo install cargo-machete --version 0.9.2 --locked
+      - run: cargo machete
+
   typos:
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +70,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npx --yes markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
+
+  tla:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - run: make tla
 
   gitleaks:
     runs-on: ubuntu-latest

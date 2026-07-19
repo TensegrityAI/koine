@@ -21,7 +21,7 @@ Thank you for considering a contribution!
 
 ```bash
 rustup show                      # picks up rust-toolchain.toml
-cargo install typos-cli lefthook --locked
+cargo install typos-cli lefthook cargo-machete --locked
 lefthook install                 # git hooks: fmt/typos pre-commit, clippy/test pre-push
 make ci                          # everything CI runs except gitleaks (CI-only)
 ```
@@ -29,5 +29,6 @@ make ci                          # everything CI runs except gitleaks (CI-only)
 ## Pull requests
 
 - Keep PRs scoped to one concern.
-- CI must be green: fmt, clippy (`-D warnings`), tests, docs build, cargo-deny, typos, gitleaks.
+- CI must be green: fmt, clippy (`-D warnings`), tests, docs build, cargo-deny,
+  typos, unused-deps (cargo-machete), gitleaks.
 - New public items need doc comments (`missing_docs` is enforced).

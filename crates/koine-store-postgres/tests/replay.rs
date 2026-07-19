@@ -85,6 +85,20 @@ fn ack(f: &Fx) -> WorkerAck<'_, PostgresEventStore, SeededIds, FixedClock> {
     }
 }
 
+/// One `dispatch_queue` row: all six non-`seq` columns, not just the four
+/// originally selected, so the "rebuild lands on byte-identical rows" claim
+/// (below) actually proves `not_before`, `worker_id`, and `lease_expires_at`
+/// match too (phase-2-carryover-hardening AC2).
+type DispatchRow = (
+    uuid::Uuid,
+    String,
+    i16,
+    Option<uuid::Uuid>,
+    Option<chrono::DateTime<chrono::Utc>>,
+    Option<String>,
+    Option<chrono::DateTime<chrono::Utc>>,
+);
+
 #[tokio::test]
 async fn dispatch_queue_rebuilds_identically_from_the_log() {
     let f = fx().await;
@@ -126,8 +140,9 @@ async fn dispatch_queue_rebuilds_identically_from_the_log() {
         .expect("succeed");
 
     // snapshot rows (ordered by queue, priority DESC, seq):
-    let before: Vec<(uuid::Uuid, String, i16, Option<uuid::Uuid>)> = sqlx::query_as(
-        "SELECT job_id, queue, priority, lease_id FROM event_store.dispatch_queue \
+    let before: Vec<DispatchRow> = sqlx::query_as(
+        "SELECT job_id, queue, priority, lease_id, not_before, worker_id, lease_expires_at \
+         FROM event_store.dispatch_queue \
          ORDER BY queue, priority DESC, seq",
     )
     .fetch_all(&f.pool)
@@ -149,8 +164,9 @@ async fn dispatch_queue_rebuilds_identically_from_the_log() {
         .expect("rebuild");
     assert_eq!(rebuilt as usize, before.len());
 
-    let after: Vec<(uuid::Uuid, String, i16, Option<uuid::Uuid>)> = sqlx::query_as(
-        "SELECT job_id, queue, priority, lease_id FROM event_store.dispatch_queue \
+    let after: Vec<DispatchRow> = sqlx::query_as(
+        "SELECT job_id, queue, priority, lease_id, not_before, worker_id, lease_expires_at \
+         FROM event_store.dispatch_queue \
          ORDER BY queue, priority DESC, seq",
     )
     .fetch_all(&f.pool)

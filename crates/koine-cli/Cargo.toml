@@ -8,6 +8,10 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 
+# Stub crate (phase 3+ control-plane CLI): no dependencies declared yet, so
+# cargo-machete has nothing to flag here and no `[package.metadata.cargo-machete]`
+# `ignored` list is needed — this is intentional, not an oversight
+# (phase-2-carryover-hardening AC3).
 [dependencies]
 
 [lints]

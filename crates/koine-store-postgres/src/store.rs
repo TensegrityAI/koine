@@ -158,6 +158,11 @@ pub(crate) async fn project_in_tx(
             .execute(&mut **tx)
             .await
             .map_err(db)?;
+            sqlx::query("SELECT pg_notify('koine_dispatch', $1)")
+                .bind(job.queue.as_str())
+                .execute(&mut **tx)
+                .await
+                .map_err(db)?;
         }
         JobState::Leased {
             worker,

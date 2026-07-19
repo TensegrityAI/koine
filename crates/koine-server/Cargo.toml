@@ -12,15 +12,12 @@ authors.workspace = true
 koine-domain = { version = "0.1.0", path = "../koine-domain" }
 koine-application = { version = "0.1.0", path = "../koine-application" }
 koine-store-postgres = { version = "0.1.0", path = "../koine-store-postgres" }
-koine-store-memory = { version = "0.1.0", path = "../koine-store-memory" }
 koine-grpc = { version = "0.1.0", path = "../koine-grpc" }
-koine-http = { version = "0.1.0", path = "../koine-http" }
-koine-mcp = { version = "0.1.0", path = "../koine-mcp" }
-koine-observability = { version = "0.1.0", path = "../koine-observability" }
 
 chrono = "0.4"
 serde_json = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+tonic = { version = "0.14", default-features = false, features = ["router", "transport"] }
 uuid = { version = "1", features = ["v7"] }
 
 [lints]

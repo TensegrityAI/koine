@@ -42,14 +42,31 @@ that exercises use cases against real (if in-memory) atomicity.
   `advance`d) and `SeededIds` (sequential UUIDs seeding the high bits with a
   caller-chosen `seed`, and using that same `seed` as `jitter_seed()`) make
   every ring-2 test deterministic.
+- **`NotifySignal`/`NoopPresence` (`src/signal.rs`, phase 2A)** — the
+  in-memory `DispatchSignal`/`WorkerPresence` implementations `koine-grpc`'s
+  test suites run against. `NotifySignal` holds one `tokio::sync::Notify`
+  per queue (lazily created in a `Mutex<HashMap<QueueName, Arc<Notify>>>`);
+  `notify` fetches-or-inserts the queue's `Notify` and calls
+  `notify_waiters()`, `wait` races `notify.notified()` against the caller's
+  `timeout`. Unlike `koine-store-postgres`'s `PgSignal`, nothing here is
+  wired to `append` automatically — this store never calls
+  `DispatchSignal::notify` itself on enqueue/retry; a caller that wants a
+  memory-store-backed `Fetch` stream to wake promptly must call `notify`
+  itself (the wire suite's `fetch_wakes_on_late_enqueue` does exactly this,
+  with a comment explaining why). `NoopPresence` discards every `seen` call
+  — the test-support presence double for suites that don't assert on
+  presence rows.
 - **Verification** — `src/store.rs` unit tests (append/load round-trip,
   version-conflict rejection, index maintenance, the phantom-stream
-  regression) and `src/dispatcher.rs` unit tests (priority/FIFO ordering,
-  `not_before` gating, lease-plus-append atomicity, extend/expire). The
-  crate-level proof is `tests/lifecycle.rs`: 8 tests running full use-case
-  flows — happy path, retryable/non-retryable failure, cancel, crash
-  recovery via the sweep, late-ack-after-expiry, heartbeat keep-alive, and
-  exhaustion into `parked`.
+  regression), `src/dispatcher.rs` unit tests (priority/FIFO ordering,
+  `not_before` gating, lease-plus-append atomicity, extend/expire), and
+  `src/signal.rs` unit tests (`wait_returns_promptly_after_concurrent_notify_same_queue`,
+  `wait_on_different_queue_times_out_at_timeout`,
+  `noop_presence_seen_completes`). The crate-level proof is
+  `tests/lifecycle.rs`: 8 tests running full use-case flows — happy path,
+  retryable/non-retryable failure, cancel, crash recovery via the sweep,
+  late-ack-after-expiry, heartbeat keep-alive, and exhaustion into
+  `parked`.
 
 ## Why
 
@@ -61,13 +78,19 @@ that exercises use cases against real (if in-memory) atomicity.
   contracts ((a) append + index update, (b) claim + append + index update)
   under one mutex, the same shape the Postgres adapter will deliver under
   one transaction.
+- ADR 0013/0015 — `NotifySignal`/`NoopPresence` keep `DispatchSignal`/
+  `WorkerPresence` adapter-neutral the same way the store/dispatcher pair
+  keeps `EventStore`/`Dispatcher` honest.
 
 ## Boundaries
 
 - Depends on `koine-application` (implements its ports) and `koine-domain`
   (folds `Job`, emits `JobEvent`).
 - Test-oriented only — it is never a production store; the only durable
-  backend is `koine-store-postgres` (phase 1B).
-- Consumed today by `koine-application`'s own tests and by
-  `crates/koine-store-memory/tests/lifecycle.rs`; phase 1B's Postgres
-  contract tests will assert the same behavior against the real adapter.
+  backend is `koine-store-postgres`.
+- Consumed by `koine-application`'s own tests, by
+  `crates/koine-store-memory/tests/lifecycle.rs`, and (phase 2A) as a
+  `[dev-dependencies]` of `koine-grpc`, whose `tests/wire.rs` and
+  `tests/fetch_idle_disconnect.rs` build their `Deps` entirely on this
+  crate's adapters (`InMemoryEventStore`, `InMemoryDispatcher`,
+  `NotifySignal`, `NoopPresence`, `FixedClock`, `SeededIds`).
