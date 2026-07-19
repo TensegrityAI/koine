@@ -194,7 +194,19 @@ where
                         }
                     }
                     Ok(None) => {
-                        deps.signal.wait(&queue, deps.config.idle_poll).await;
+                        // Race the idle wait against the receiver closing:
+                        // without this, a client that drops the fetch
+                        // stream while the queue is empty leaves this task
+                        // polling forever (it never observes the drop
+                        // because it's parked in `signal.wait`, not on
+                        // `tx.send`). On signal/timeout, loop and re-check
+                        // the queue as before; on a closed receiver, end
+                        // the task immediately instead of leasing work
+                        // nobody will read.
+                        tokio::select! {
+                            () = deps.signal.wait(&queue, deps.config.idle_poll) => {}
+                            () = tx.closed() => break,
+                        }
                     }
                     Err(e) => {
                         let _ = tx

@@ -8,10 +8,21 @@ use tonic::metadata::MetadataMap;
 /// Validates `authorization: Bearer <token>` (constant-time) and the
 /// `koine-worker-id` header. Returns the caller's `WorkerId`.
 ///
+/// An empty `expected_token` rejects every caller outright (ADR 0014: the
+/// data plane must not run unauthenticated).
+///
 /// # Errors
 /// `UNAUTHENTICATED` on any missing/invalid credential — no detail leakage.
 pub fn check(metadata: &MetadataMap, expected_token: &str) -> Result<WorkerId, Status> {
     let unauthenticated = || Status::unauthenticated("invalid credentials");
+    if expected_token.is_empty() {
+        // Defense in depth: an empty configured token must never
+        // authenticate anyone, even a request presenting an equally empty
+        // `Bearer ` token (trailing space, no credential) — the
+        // length-then-ct_eq comparison below would otherwise treat 0 == 0
+        // as a match.
+        return Err(unauthenticated());
+    }
     let auth = metadata
         .get("authorization")
         .and_then(|v| v.to_str().ok())
@@ -113,5 +124,24 @@ mod tests {
         let metadata = metadata(Some(TOKEN), Some("worker-1"));
         let err = check(&metadata, TOKEN).expect_err("missing bearer prefix");
         assert_eq!(err.code(), tonic::Code::Unauthenticated);
+    }
+
+    #[test]
+    fn empty_expected_token_rejects_empty_presented_token() {
+        // "Bearer " with a trailing space presents an empty token, which
+        // would satisfy `0 == 0` and an empty-slice `ct_eq` if the empty
+        // expected token weren't rejected up front.
+        let metadata = metadata(Some("Bearer "), Some("worker-1"));
+        let err = check(&metadata, "").expect_err("empty expected token");
+        assert_eq!(err.code(), tonic::Code::Unauthenticated);
+        assert_eq!(err.message(), "invalid credentials");
+    }
+
+    #[test]
+    fn empty_expected_token_rejects_any_presented_token() {
+        let metadata = metadata(Some(&format!("Bearer {TOKEN}")), Some("worker-1"));
+        let err = check(&metadata, "").expect_err("empty expected token");
+        assert_eq!(err.code(), tonic::Code::Unauthenticated);
+        assert_eq!(err.message(), "invalid credentials");
     }
 }

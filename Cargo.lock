@@ -1231,9 +1231,11 @@ dependencies = [
 name = "koine-grpc"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "koine-application",
  "koine-domain",
  "koine-proto",
+ "koine-store-memory",
  "serde_json",
  "subtle",
  "tokio",
