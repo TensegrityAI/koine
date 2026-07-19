@@ -11,6 +11,13 @@ authors.workspace = true
 [dependencies]
 koine-domain = { version = "0.1.0", path = "../koine-domain" }
 koine-application = { version = "0.1.0", path = "../koine-application" }
+koine-proto = { version = "0.1.0", path = "../koine-proto" }
+tonic = { version = "0.14", default-features = false, features = ["transport", "codegen"] }
+tokio = { version = "1", default-features = false, features = ["rt", "sync"] }
+tokio-stream = { version = "0.1", default-features = false, features = ["sync"] }
+serde_json = "1"
+subtle = "2"
+uuid = "1"
 
 [lints]
 workspace = true

@@ -1233,6 +1233,13 @@ version = "0.1.0"
 dependencies = [
  "koine-application",
  "koine-domain",
+ "koine-proto",
+ "serde_json",
+ "subtle",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "uuid",
 ]
 
 [[package]]
@@ -2822,6 +2829,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]
