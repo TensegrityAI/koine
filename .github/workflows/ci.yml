@@ -24,6 +24,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      # koine-proto's build.rs runs protoc (absent from the runner image)
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo clippy --workspace --all-targets -- -D warnings
 
   test:
@@ -32,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      # koine-proto's build.rs runs protoc (absent from the runner image)
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo test --workspace
 
   docs:
@@ -39,6 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      # koine-proto's build.rs runs protoc (absent from the runner image)
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
       - run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: -D warnings

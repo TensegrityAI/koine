@@ -21,6 +21,7 @@ Thank you for considering a contribution!
 
 ```bash
 rustup show                      # picks up rust-toolchain.toml
+sudo apt-get install protobuf-compiler   # protoc — koine-proto's build.rs needs it
 cargo install typos-cli lefthook cargo-machete --locked
 lefthook install                 # git hooks: fmt/typos pre-commit, clippy/test pre-push
 make ci                          # everything CI runs except gitleaks (CI-only)
