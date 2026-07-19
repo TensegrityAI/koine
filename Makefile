@@ -1,4 +1,4 @@
-.PHONY: build test fmt fmt-check lint doc deny typos md ci hooks
+.PHONY: build test fmt fmt-check lint doc deny typos md ci hooks tla
 
 build:
 	cargo build --workspace
@@ -34,3 +34,12 @@ ci: fmt-check lint test doc deny typos md
 
 hooks:
 	lefthook install
+
+TLA_TOOLS := docs/formal/.tools/tla2tools.jar
+
+$(TLA_TOOLS):
+	mkdir -p docs/formal/.tools
+	curl -fsSL https://github.com/tlaplus/tlaplus/releases/latest/download/tla2tools.jar -o $(TLA_TOOLS)
+
+tla: $(TLA_TOOLS)
+	cd docs/formal && java -XX:+UseParallelGC -jar .tools/tla2tools.jar -config lease_protocol.cfg lease_protocol.tla
