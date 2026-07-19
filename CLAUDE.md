@@ -3,7 +3,7 @@
 **Current phase: 1 complete — next: phase 2 (data plane)** (see design spec
 §6 for all phases).
 
-Active plan: none until the phase-2 plan is written.
+Active plan: `docs/superpowers/plans/2026-07-19-koine-phase-2a-data-plane-server.md`.
 
 ## Quick orientation
 
