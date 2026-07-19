@@ -1284,10 +1284,6 @@ dependencies = [
  "koine-application",
  "koine-domain",
  "koine-grpc",
- "koine-http",
- "koine-mcp",
- "koine-observability",
- "koine-store-memory",
  "koine-store-postgres",
  "serde_json",
  "tokio",
@@ -1303,7 +1299,6 @@ dependencies = [
  "koine-application",
  "koine-domain",
  "serde_json",
- "thiserror",
  "tokio",
  "uuid",
 ]
@@ -1320,7 +1315,6 @@ dependencies = [
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
- "thiserror",
  "tokio",
  "uuid",
 ]

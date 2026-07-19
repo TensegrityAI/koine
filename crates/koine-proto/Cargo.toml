@@ -16,5 +16,13 @@ tonic-prost = "0.14"
 [build-dependencies]
 tonic-prost-build = "0.14"
 
+# `prost` and `tonic-prost` are only referenced from the code
+# `tonic::include_proto!` (src/lib.rs) pulls in via `include!()` at compile
+# time from OUT_DIR; cargo-machete's static source scan never sees that
+# generated file, so it flags both as unused. False positive, not dead
+# weight — see phase-2-carryover-hardening AC3.
+[package.metadata.cargo-machete]
+ignored = ["prost", "tonic-prost"]
+
 [lints]
 workspace = true

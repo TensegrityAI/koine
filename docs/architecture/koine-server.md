@@ -50,16 +50,18 @@ product", not only through unit tests).
 ## Boundaries
 
 - Depends on every crate below it in the hexagon: `koine-domain`,
-  `koine-application`, and (today) `koine-store-postgres`. `Cargo.toml` also
-  declares `koine-store-memory`, `koine-grpc`, `koine-http`, `koine-mcp`, and
-  `koine-observability` as dependencies (verifying the phase-0 workspace
-  wiring), but nothing in this crate's source references them yet — they are
-  inert until the phases that give them real behavior (2–4) wire them in here
-  too; neither `cargo deny` nor clippy flag unused *dependencies* (only unused
-  imports), so this asymmetry is real but currently invisible to CI.
-- Grows with each phase: the gRPC data-plane adapter arrives in phase 2, the
-  REST control plane and dashboard in phase 3, the MCP adapter in phase 4 —
-  each is wired into this same composition root, not a new one.
+  `koine-application`, `koine-store-postgres`, and (phase 2A) `koine-grpc`,
+  wired in by `serve.rs`'s authenticated data-plane `serve` command.
+  `koine-store-memory`, `koine-http`, `koine-mcp`, and `koine-observability`
+  were declared in `Cargo.toml` from the phase-0 workspace wiring but never
+  referenced from this crate's source; a `cargo-machete` CI job now catches
+  exactly that asymmetry (neither `cargo deny` nor clippy flag unused
+  *dependencies*, only unused imports), so they were pruned rather than left
+  inert — see `phase-2-carryover-hardening` AC3. Each rejoins `Cargo.toml`
+  only once the phase that gives it real behavior (2B–4) wires it in here.
+- Grows with each phase: the REST control plane and dashboard arrive in
+  phase 3, the MCP adapter in phase 4 — each is wired into this same
+  composition root, not a new one.
 - `dev-loop` is a development/exercise command, not a production entry point;
   phase 2+ adds the real server-mode subcommand(s) that actually serve
   traffic.

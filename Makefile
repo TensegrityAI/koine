@@ -1,4 +1,4 @@
-.PHONY: build test fmt fmt-check lint doc deny typos md ci hooks tla
+.PHONY: build test fmt fmt-check lint doc deny typos md machete ci hooks tla
 
 build:
 	cargo build --workspace
@@ -29,7 +29,19 @@ typos:
 md:
 	npx --yes markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
 
-ci: fmt-check lint test doc deny typos md
+# Catches unused *dependencies* (neither clippy nor `cargo deny` do) — see
+# phase-2-carryover-hardening AC3. Not auto-installed (unlike `make tla`'s
+# jar download) because `cargo install` recompiles a whole tool on a cache
+# miss, which is too slow to hide inside a target run on every `make ci`;
+# install once with: cargo install cargo-machete --locked
+machete:
+	@command -v cargo-machete >/dev/null 2>&1 || { \
+		echo "cargo-machete not found — install with: cargo install cargo-machete --locked"; \
+		exit 1; \
+	}
+	cargo machete
+
+ci: fmt-check lint test doc deny typos md machete
 	@echo "✓ all CI checks green"
 
 hooks:

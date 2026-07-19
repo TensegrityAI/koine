@@ -57,7 +57,7 @@ architectural debt: report it, do not copy it as precedent.
 
 ## 5. Commands
 
-- `make ci` — everything CI runs except gitleaks, which is CI-only (fmt, clippy -D warnings, test, docs, deny, typos, markdownlint)
+- `make ci` — everything CI runs except gitleaks, which is CI-only (fmt, clippy -D warnings, test, docs, deny, typos, markdownlint, unused-deps via cargo-machete)
 - `make test` / `make lint` / `make fmt` — individual rings
 - `lefthook install` — git hooks (pre-commit: fmt+typos; pre-push: clippy+test;
   commit-msg: conventional commits)
