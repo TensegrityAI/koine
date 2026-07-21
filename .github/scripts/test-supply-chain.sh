@@ -65,8 +65,7 @@ expect_fail() {
 
 expect_pass valid
 expect_pass comments pass/comments
-expect_pass quoted_action pass/quoted-action
-expect_pass flow_action pass/flow-action
+expect_pass quoted_and_flow_actions pass/action-syntax
 
 expect_fail action_tag fail/action-tag "floating or unapproved GitHub Action"
 expect_fail action_without_comment fail/action-no-comment "approved release comment"
@@ -79,6 +78,7 @@ expect_fail tla_execution_without_recheck fail/tla-no-run-check "TLA+ execution 
 expect_fail tla_download_without_checksum fail/tla-no-download-check "TLA+ download must verify"
 expect_fail npm_install fail/npm-install "npm install is not allowed"
 expect_fail package_version_drift fail/package-version "package.json must pin markdownlint-cli2"
+expect_fail node_engine_upper_bound fail/node-engine-upper "package.json must constrain Node to >=22.23.1"
 expect_fail setup_node_drift fail/setup-node "floating or unapproved GitHub Action"
 expect_fail node_version_drift fail/node-version "Node version drift"
 expect_fail image_tag_drift fail/image-tag "temporary Postgres image exception drifted"

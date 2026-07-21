@@ -406,8 +406,8 @@ lock_contents=$(<"$package_lock") || {
 if [[ ! $package_contents =~ \"packageManager\"[[:space:]]*:[[:space:]]*\"npm@10\.9\.8\" ]]; then
   fail "package.json must pin packageManager to npm@10.9.8"
 fi
-if [[ ! $package_contents =~ \"node\"[[:space:]]*:[[:space:]]*\"\>=22\.23\.1\ \<23\" ]]; then
-  fail "package.json must constrain Node to >=22.23.1 <23"
+if [[ ! $package_contents =~ \"node\"[[:space:]]*:[[:space:]]*\"\>=22\.23\.1\" ]]; then
+  fail "package.json must constrain Node to >=22.23.1"
 fi
 if [[ ! $package_contents =~ \"markdownlint-cli2\"[[:space:]]*:[[:space:]]*\"0\.23\.1\" ]]; then
   fail "package.json must pin markdownlint-cli2 to 0.23.1"
@@ -417,6 +417,9 @@ if [[ $package_contents =~ \"scripts\"[[:space:]]*: || $lock_contents =~ \"hasIn
 fi
 if [[ ! $lock_contents =~ \"markdownlint-cli2\"[[:space:]]*:[[:space:]]*\"0\.23\.1\" || ! $lock_contents =~ \"version\"[[:space:]]*:[[:space:]]*\"0\.23\.1\" ]]; then
   fail "package-lock.json must resolve markdownlint-cli2 0.23.1"
+fi
+if [[ ! $lock_contents =~ \"node\"[[:space:]]*:[[:space:]]*\"\>=22\.23\.1\" ]]; then
+  fail "package-lock.json must preserve the Node >=22.23.1 tool contract"
 fi
 
 if ((action_count_setup_node != 1)); then

@@ -117,12 +117,18 @@ unchanged.
 - The previously reported 0.22.1 audit concern is superseded by this
   disposition. The inter-task `protoc` gap remains owned by Task 3; no apt or
   fallback was reintroduced.
+- Follow-up review verified that `markdownlint-cli2` 0.23.1 declares Node
+  `>=22`, without an upper bound. The repository tool contract is therefore
+  `>=22.23.1`, while CI remains reproducibly pinned to Node 22.23.1. A specific
+  mutation rejects reintroducing `<23`; the consolidated quoted/flow fixture
+  keeps the suite at 23 probes. On the Node 24.14.0 host, `make md` now runs
+  without `EBADENGINE` and reports zero issues.
 
 Updated verification checksums:
 
 - `package-lock.json`:
-  `7a2dcacdfa91b5f94c42e80f2fa1d0242c069e1be9f6de6c3466e713325d91c3`
+  `b8aa9d3690f3ecefc465843e7981efc81228b4aeadd18cd67b83570a8aa82b15`
 - `.github/scripts/check-supply-chain.sh`:
-  `0c2b2da778115809bafb38e49f915baad3da7a214b127f15ba63c5ee219252ba`
+  `b936d8645e27695f2822c62d2207b109b8c208ddfcbd6f974c8250f3c8cc7c63`
 - `.github/scripts/test-supply-chain.sh`:
-  `2beeb16e5d021df8f4f417489d6b07a9b249f0c502c958aebcc22c29a193d761`
+  `4c9b93c52826f1066a8676c3bdd62d9d5906198350d285cd0de63f37628114be`

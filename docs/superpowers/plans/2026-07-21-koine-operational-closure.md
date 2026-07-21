@@ -194,7 +194,7 @@ Create:
   "private": true,
   "packageManager": "npm@10.9.8",
   "engines": {
-    "node": ">=22.23.1 <23"
+    "node": ">=22.23.1"
   },
   "devDependencies": {
     "markdownlint-cli2": "0.23.1"
