@@ -1,6 +1,6 @@
 # Close phase-1B recorded coverage/hygiene gaps before phase 2 lands
 
-- **State:** todo
+- **State:** done
 - **Origin:** phase 1B final review 2026-07-18
 - **Epic:** none — cross-cutting hardening carried forward from phase 1B;
   touches phase 2 (`connect_pool` sizing under gRPC load) and flags a
@@ -57,9 +57,8 @@
   compile-time `include!()`, invisible to machete's static scan) —
   broader than this AC's literal koine-server-only text, disclosed here.
   `cargo machete` reports zero unused deps workspace-wide. Commit `0093d07`.
-- [ ] AC4: `connect_pool` exposes a pool-size knob (today it calls
-  `PgPool::connect(url)` with sqlx's silent default, no `max_connections`
-  control), and the wiki records a phase-3 forward note that the outbox
+- [x] AC4: `connect_pool` exposes a pool-size knob and the wiki records a
+  phase-3 forward note that the outbox
   relay and any future `EventSink` sharing one pool with the hot
   dispatch/append path can deadlock under load if the pool is undersized
   (relay concurrency is still single-instance per ADR 0012, but the shared
@@ -67,9 +66,12 @@
   configurable size (e.g. via `PgPoolOptions`) with a test asserting it's
   honored; note added to `docs/architecture/koine-store-postgres.md`'s
   Boundaries section.
-  **→ 2B/3** — out of Task 8's 2A-scoped cut; the pool-knob change and its
-  relay/sink shared-pool deadlock note stay open for whichever of phase 2B
-  or 3 first adds a second consumer of `connect_pool`'s pool.
+  **Closed** (resource hardening, 2026-07-21): `PoolConfig` supplies non-zero
+  pool size/acquisition-timeout values to `connect_pool`; ring-3
+  `pool_options_are_honored` proves they reach SQLx. The Postgres wiki states
+  the exact `N + 1` process budget and warns that phase-3 relay/sink
+  concurrency requires a capacity review. The size-one, 32-waiter fan-out
+  test proves the dedicated listener does not starve operational append work.
 
 ## Dependencies
 
@@ -79,28 +81,24 @@
   `connect_pool` signature (a breaking change for any caller — currently
   only `koine-server`).
 
-## Evidence (filled at close)
+## Evidence (closed, 2026-07-21)
 
-Partial — AC1–AC3 closed by Task 8 (phase 2A branch, 2026-07-19); see
-per-AC **Closed** notes above for commits and verification. AC4 remains
-open, so this item stays in `todo/` rather than moving to `done/` (task
-lifecycle: a `todo/`→`done/` move requires every DoD point to hold). Full
-`make ci` (now including the new `unused-deps`/`make machete` step) green
-throughout; all 20 `koine-store-postgres` ring-3 tests green against a real
-Postgres container (Docker/testcontainers).
+AC1–AC3 remain closed by Task 8 (phase 2A branch, 2026-07-19); their
+per-criterion commit and verification notes above remain the supporting
+evidence. AC4 is closed by the reviewed resource-hardening slice: explicit
+non-zero pool configuration is proven by `pool_options_are_honored`, the
+Postgres architecture page documents the exact `N + 1` budget and phase-3
+relay/sink capacity review, and the 32-waiter size-one pressure test proves
+the listener leaves operational append capacity available. Final `make ci`
+and `git diff --check` pass. The current workspace test inventory is 127;
+the historical 126-test base-slice run is not closure evidence.
 
-2026-07-21 pre-review resource-hardening evidence for AC4: `PoolConfig`
-passes the non-zero `KOINE_DB_MAX_CONNECTIONS` and
-`KOINE_DB_ACQUIRE_TIMEOUT_MS` settings to `connect_pool`; ring-3
-`pool_options_are_honored` passes against Postgres. The architecture wiki now
-states the exact `N + 1` budget and phase-3 relay/sink capacity-review warning.
-The shared-listener pressure test also passes with one operational connection,
-32 idle waits, and one dedicated listener, leaving the operational connection
-available for append. This functional evidence is intentionally not an AC4
-closure: independent Step 3 verdicts and the resource item's final lifecycle
-work are still pending, so AC4 remains unchecked and the `→ 2B/3` disposition
-remains in force.
+## Independent review verdict (2026-07-21)
 
-## Spec-fidelity statement (filled at close)
+- Spec compliance: ✅ Faithful to hardening design §5 and legacy carryover AC4.
+- Quality: Approved — no Critical, Important, or unrecorded Minor findings.
 
-Deferred until AC4 is independently reviewed and this item moves to `done/`.
+## Spec-fidelity statement
+
+Faithful to the recorded phase-1B carryover AC1–AC4. No specification or ADR
+change was required; this is the documented, reviewed hardening closure.
