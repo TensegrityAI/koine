@@ -40,9 +40,12 @@ versions, and that the first focused gate did not fail closed across every
 policy category. The applicable reviewed identities are now
 `markdownlint-cli2` 0.23.1, Node 22.23.1, npm 10.9.8, and
 `actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444` with the
-`v5.0.0` allowlist comment and disabled package-manager cache.
+`v5.0.0` allowlist comment and disabled package-manager cache. Exact direct
+`js-yaml` 4.3.0 supplies the semantic YAML/JSON policy parser.
 
 This is an application amendment, not a status or architecture change. The
 new exact identities remove the audited dependency findings and preserve the
 accepted decision that executable inputs and their update surface remain
-immutable and reviewable.
+immutable and reviewable. The gate enumerates workflows from the filesystem,
+parses policy-bearing YAML and JSON semantically, and fails closed on parser,
+import, or filesystem errors.

@@ -26,13 +26,12 @@
 | --- | --- | --- |
 | `actions/checkout` | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
 | `actions/setup-java` | v5.6.0 | `03ad4de0992f5dab5e18fcb136590ce7c4a0ac95` |
-| `actions/setup-node` | v5.0.0 | `a0853c24544627f65ddf259abe73b1d18a591444` |
 | `actions-rust-lang/setup-rust-toolchain` | v1.17.0 | `166cdcfd11aee3cb47222f9ddb555ce30ddb9659` |
 | `EmbarkStudios/cargo-deny-action` | v2.1.1 | `3c6349835b2b7b196a839186cb8b78e02f7b5f25` |
 | `crate-ci/typos` | v1.48.0 | `bee27e3a4fd1ea2111cf90ab89cd076c870fce14` |
 | TLA+ tools | v1.7.4 | SHA-256 `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88` |
 | Temurin JDK | 21.0.11+10 | exact `setup-java` input |
-| `markdownlint-cli2` | 0.23.1 | exact npm lock; Node 22.23.1; npm 10.9.8 |
+| `markdownlint-cli2` | 0.22.1 | exact npm lock; Node `>=20` |
 | `protoc-bin-vendored` | 3.2.0 | exact Cargo requirement and lock checksums |
 | PostgreSQL image | 17 | `sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d` |
 
@@ -192,29 +191,13 @@ Create:
 {
   "name": "koine-repository-tools",
   "private": true,
-  "packageManager": "npm@10.9.8",
-  "engines": {
-    "node": ">=22.23.1"
-  },
   "devDependencies": {
-    "markdownlint-cli2": "0.23.1"
+    "markdownlint-cli2": "0.22.1"
   }
 }
 ```
 
-Run `npm install --package-lock-only --ignore-scripts`. Before CI invokes npm,
-configure the exact Node runtime:
-
-```yaml
-- uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-  with:
-    node-version: "22.23.1"
-    package-manager-cache: false
-```
-
-Change local/CI Markdownlint to `npm ci --ignore-scripts` followed by
-`npm exec -- markdownlint-cli2 ...`. Add `supply-chain` to `.PHONY` and `ci`
-dependencies.
+Run `npm install --package-lock-only --ignore-scripts`, then change local/CI Markdownlint to `npm ci --ignore-scripts` followed by `npm exec -- markdownlint-cli2 ...`. Add `supply-chain` to `.PHONY` and `ci` dependencies.
 
 - [ ] **Step 6: Run green and mutation-probe the gate**
 
@@ -495,10 +478,42 @@ Expected: no active closed-phase item and a clean branch. Do not push without an
 
 ## 2026-07-21 applicable supply-chain audit amendment
 
-Post-implementation audit supersedes Task 2's initial Markdownlint selection
-with `markdownlint-cli2` 0.23.1, Node 22.23.1, npm 10.9.8, and
-`actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444` (`v5.0.0`).
-The exact setup-node step above runs before npm with package-manager cache
-disabled. The gate's reviewed allowlist and executable mutation fixtures are
-part of Task 2's delivered contract. These exact identities preserve the
+The plan body above remains the exact pre-execution record from `1ddfa6f`.
+Post-implementation audit supersedes only its executed Task 2 instructions;
+the historical 0.22.1 selection is not rewritten.
+
+The applicable repository-tool manifest is:
+
+```json
+{
+  "name": "koine-repository-tools",
+  "private": true,
+  "packageManager": "npm@10.9.8",
+  "engines": {
+    "node": ">=22.23.1"
+  },
+  "devDependencies": {
+    "js-yaml": "4.3.0",
+    "markdownlint-cli2": "0.23.1"
+  }
+}
+```
+
+Both Markdownlint and supply-chain CI jobs run this setup before npm:
+
+```yaml
+- uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+  with:
+    node-version: "22.23.1"
+    package-manager-cache: false
+- run: npm ci --ignore-scripts
+```
+
+Markdownlint still runs through `npm exec`. `make supply-chain` installs the
+exact lock with scripts disabled, then invokes the fail-closed Bash wrapper,
+semantic ESM checker, and repository-owned mutation suite. The checker parses
+all workflow/Compose YAML and package/lock JSON with exact `js-yaml` 4.3.0,
+rejects duplicate JSON keys, enumerates workflows independently of ignore
+files, and enforces the reviewed action/comment, Node/npm, TLA+, gitleaks,
+download, and image identities. These exact instructions preserve the
 accepted immutable-input decision and resolve the applicable npm audit.

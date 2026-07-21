@@ -10,7 +10,7 @@
 
 ## Acceptance criteria
 
-- [ ] AC1: repository-owned actions/downloads/tooling satisfy the accepted immutable-input policy and an automated gate rejects floating regressions — *verify:* `make supply-chain` plus deliberate mutation probe.
+- [ ] AC1: repository-owned actions/downloads/tooling satisfy the accepted immutable-input policy and a fail-closed semantic gate rejects floating, parser, filesystem, and source-form bypasses — *verify:* `make supply-chain` plus its repository-owned mutation suite.
 - [ ] AC2: protobuf builds with a deliberately invalid `PROTOC`, proving vendored compiler selection — *verify:* isolated-target `cargo build -p koine-proto`.
 - [ ] AC3: internal dependency edges are identical before/after centralization; descriptions contain no backticks and every crate is non-publishable — *verify:* normalized metadata diff and manifest scan.
 - [ ] AC4: every implemented crate's package file list contains required sources/assets/licenses — *verify:* `cargo package --allow-dirty --list -p ...`.
@@ -30,5 +30,10 @@
   it with the approved digest and removes the exception branch.
 
 ## Evidence (filled at close)
+
+- Operational Task 2 current evidence is recorded in
+  [the supply-chain report](../../../.superpowers/sdd/operational-task-2-report.md).
+  AC1 is implemented and independently reviewable, but remains unchecked until
+  the parent operational item completes all acceptance criteria and DoD gates.
 
 ## Spec-fidelity statement (filled at close)

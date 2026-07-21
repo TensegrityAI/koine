@@ -14,20 +14,32 @@ pass `make supply-chain` before merge.
 - Downloaded executables use a versioned URL and a checked-in SHA-256 digest.
   The digest is checked both when downloading and before every execution.
 - Cargo-installed tools use an exact version with `--locked`.
-- Node tools are exact dev dependencies in `package.json`, installed from the
-  committed `package-lock.json` with `npm ci --ignore-scripts`, and run with
-  `npm exec`. CI uses Node `22.23.1` through the reviewed setup-node action,
-  the repository declares npm `10.9.8`, and lifecycle scripts are forbidden.
+- Node tools are exact direct dev dependencies in `package.json`: `js-yaml`
+  `4.3.0` supplies the policy parser and `markdownlint-cli2` `0.23.1` supplies
+  Markdownlint. They are installed from the committed `package-lock.json`
+  with `npm ci --ignore-scripts`; Markdownlint runs with `npm exec`. CI uses
+  Node `22.23.1` through the reviewed setup-node action, the repository
+  declares npm `10.9.8`, and lifecycle scripts are forbidden throughout the
+  lock graph.
 - Container images use immutable digests when they are executable build or CI
   inputs. Development-only images without a stable reviewed digest must be
   called out explicitly.
 
-The fail-closed gate scans `.github/workflows`, `Makefile`, `compose.yaml`, and
-repository-owned `.github/scripts`. It rejects scanner/read failures,
-non-allowlisted actions or version comments, mutable runners, floating npm
-execution, unapproved executable downloads, missing download/run checksums,
-Node/npm/package drift, and unapproved image tags. Its executable mutation
-suite uses repository-owned fixtures and runs as part of `make supply-chain`.
+`make supply-chain` first performs the exact script-disabled lock install. A
+small Bash wrapper then fails if Node or the installed parser is unavailable
+and invokes the ESM policy checker. The checker enumerates every workflow from
+the filesystem, independently of Git ignore rules, and semantically parses all
+workflow and Compose YAML plus `package.json` and `package-lock.json`. Duplicate
+JSON keys, malformed input, filesystem failures, parser import failures, and
+unsupported action source forms all fail closed.
+
+The checker enforces the exact action/comment allowlist, immutable runner and
+image forms, setup-node job association and ordering, exact Node/npm/package
+identities, exact TLA+ and gitleaks download/checksum/execution sequences, and
+the absence of all other `curl`, `wget`, `npm`, or `npx` commands in reviewed
+workflow, Makefile, and repository-owned shell surfaces. Its executable
+mutation suite uses repository-owned fixtures and runs as part of
+`make supply-chain`.
 
 ## Temporary image exception
 
