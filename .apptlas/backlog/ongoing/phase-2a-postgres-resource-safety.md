@@ -21,6 +21,30 @@
 
 - [Atomic lease retirement](../done/phase-2a-atomic-lease-retirement.md) — done.
 
-## Evidence (filled at close)
+## Evidence (pre-review, 2026-07-21)
 
-## Spec-fidelity statement (filled at close)
+- Operator contract: `.env.example` names `KOINE_WORKER_TOKEN`,
+  `KOINE_GRPC_ADDR`, `KOINE_MAX_LEASE_TTL_MS`, `KOINE_IDLE_POLL_MS`,
+  `KOINE_DB_MAX_CONNECTIONS`, and `KOINE_DB_ACQUIRE_TIMEOUT_MS`; the defaults
+  are respectively required, `0.0.0.0:7419`, 300000 ms, 1000 ms, 16, and
+  5000 ms. The four numeric resource settings reject zero before startup.
+- Architecture wiki: `koine-store-postgres`, `koine-server`, and `koine-grpc`
+  record an exact `N + 1` per-process Postgres budget (`N` operational-pool
+  connections plus one dedicated listener), a single shared listener with
+  broadcast fan-out, the 100 ms best-effort presence budget, the idle-poll
+  dispatch-recheck fallback, and the phase-3 relay/sink capacity-review
+  warning. The Postgres page records that intermediate signal-clone drops keep
+  the hub alive and the last drop releases its listener.
+- Fresh resource gate: `rg -n "PgSignal::new|PgPool::connect\\(" crates`
+  returned no matches (exit 1); `cargo test -p koine-store-postgres` passed
+  30 integration tests; `cargo test -p koine-grpc --test grpc_e2e` passed 2;
+  `cargo test -p koine-server` passed 10; `make ci` passed; and
+  `git diff --check` passed.
+
+## Pending independent review and closure
+
+Step 3 must still obtain independent spec-compliance and quality verdicts,
+including reproduction of the size-one listener-pressure and saturated-presence
+tests and inspection of design §5 and legacy AC4. Step 4 must then record the
+reviewed closure evidence, spec-fidelity statement, and lifecycle moves. No
+acceptance criterion is checked and this record remains `ongoing` until then.

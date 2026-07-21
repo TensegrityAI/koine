@@ -33,24 +33,29 @@ durable twin of `koine-store-memory`: the ADR 0011 composite contracts and
   a retry landing back in `Pending`), the same transaction runs `SELECT
   pg_notify('koine_dispatch', $1)` with the queue name as payload — so a
   waiting `Fetch` stream only wakes when there is actually new claimable
-  work, and only once the transaction that created it commits. `PgSignal::
-  wait` (`signal.rs`) opens a `PgListener`, `LISTEN`s on `koine_dispatch`,
-  and loops `recv()` until a notification for the right queue arrives or the
-  timeout elapses — the **entire** operation (pool acquire, listen, recv
-  loop) is wrapped in one outer `tokio::time::timeout`, not just the
-  individual `recv()` calls, so a slow pool acquire can't make the caller
-  wait past its budget (a fix made during review). Contrast with
-  `koine-store-memory`'s `NotifySignal`: the memory store's `append` never
-  calls `notify` itself, only this crate's does — a caller building a
-  memory-backed `Fetch` stream must signal manually (documented on that
-  page).
+  work, and only once the transaction that created it commits.
+  `PgSignal::connect` (`signal.rs`) opens and subscribes one dedicated
+  `PgListener` before returning. All `PgSignal` clones share its in-process
+  hub: its single background receive loop fans queue payloads to broadcast
+  receivers, and each `wait` filters its own queue under the caller's timeout.
+  Idle waits therefore consume neither the operational pool nor a listener
+  each. A receive error backs off for 100 ms while SQLx reconnects; delivery
+  remains an optimization because a timed-out `wait` returns control for the
+  caller to re-check dispatch. The hub lives while any `PgSignal` clone lives;
+  dropping an intermediate clone changes nothing, while dropping the last
+  clone aborts the receive task and releases the dedicated listener connection.
+  Contrast with `koine-store-memory`'s `NotifySignal`: the memory store's
+  `append` never calls `notify` itself, only this crate's does — a caller
+  building a memory-backed `Fetch` stream must signal manually (documented on
+  that page).
 - **`PgPresence` is best-effort by design** (`presence.rs`) — `seen` upserts
   `event_store.workers` (`last_seen = now()`, `last_queue` via `COALESCE`
   so a call with `queue: None` doesn't clobber the last known queue) and
   silently swallows any DB error: presence tracking must never fail or slow
   down a worker's request (ADR 0015). There is no retry, no logging, no
   propagated failure — a dropped presence update is invisible by design,
-  not a bug.
+  not a bug. It uses `try_acquire`, so a saturated operational pool returns
+  immediately; after acquisition its UPSERT has a private 100 ms budget.
 - **Append is one transaction** (`store.rs::append_in_tx`) — explicit
   `SELECT max(version)` against the expected version (races resolved by the
   unique-constraint mapping Postgres error `23505` on
@@ -147,6 +152,14 @@ durable twin of `koine-store-memory`: the ADR 0011 composite contracts and
   no dead-letter escape today — it simply redelivers indefinitely; a
   poison-envelope / dead-letter strategy is deliberately out of scope here
   and carried forward to phase 3.
+- `connect_pool` takes non-zero `PoolConfig` limits: the operational pool has
+  `N` maximum connections and a bounded acquisition timeout. `PgSignal` owns
+  one separate listener connection, so a `serve` process needs an exact
+  `N + 1` Postgres client-connection budget. The one-listener fan-out test
+  proves the size-one operational case (`1 + 1`) while 32 waits are pending.
+  Phase 3: before adding relay or `EventSink` concurrency that shares the
+  operational pool, review this capacity budget; the current single relay is
+  not evidence that a larger consumer set is safe.
 - `rebuild_dispatch` is a library function today, exercised only by
   `tests/replay.rs` — there is no `koine-cli`/ops command wrapping it yet
   (phase 3's CLI is the natural home); running it against a live database is

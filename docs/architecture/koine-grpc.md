@@ -35,7 +35,11 @@ one crate a worker in any language actually talks to.
   `LeaseNextJob::execute`; on `Some(job)` it sends the wire-converted job
   over an `mpsc::channel(16)` feeding the `ReceiverStream` response; on
   `None` it races `tokio::select!` between `deps.signal.wait(&queue,
-  idle_poll)` and `tx.closed()`. Racing `tx.closed()` is a leak fix from
+  idle_poll)` and `tx.closed()`. `PgSignal` shares one dedicated Postgres
+  listener across all waits and fans a matching queue notification to them;
+  notification loss or reconnect is not a correctness dependency because
+  `idle_poll` returns the loop to re-check dispatch. Racing `tx.closed()` is
+  a leak fix from
   review: without it, a client that drops the stream while its queue is
   idle leaves the spawned task polling forever, because it's parked in
   `signal.wait`, never observing the closed receiver — regression-tested by
@@ -102,3 +106,9 @@ one crate a worker in any language actually talks to.
   enqueued through the use cases directly.
 - No checkpoint RPC exists in `koine-proto`'s `worker.proto` or anywhere in
   this crate.
+- `Fetch` waits do not consume the `N`-connection operational pool: their
+  shared listener adds one dedicated connection, so the `serve` process
+  budgets `N + 1` Postgres clients. Presence is deliberately weaker than job
+  delivery: it skips a saturated pool and bounds an acquired write to 100 ms.
+  Before phase 3 increases relay or sink concurrency on the same operational
+  pool, capacity must be reviewed.

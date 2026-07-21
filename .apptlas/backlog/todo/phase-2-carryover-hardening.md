@@ -89,7 +89,18 @@ lifecycle: a `todo/`→`done/` move requires every DoD point to hold). Full
 throughout; all 20 `koine-store-postgres` ring-3 tests green against a real
 Postgres container (Docker/testcontainers).
 
+2026-07-21 pre-review resource-hardening evidence for AC4: `PoolConfig`
+passes the non-zero `KOINE_DB_MAX_CONNECTIONS` and
+`KOINE_DB_ACQUIRE_TIMEOUT_MS` settings to `connect_pool`; ring-3
+`pool_options_are_honored` passes against Postgres. The architecture wiki now
+states the exact `N + 1` budget and phase-3 relay/sink capacity-review warning.
+The shared-listener pressure test also passes with one operational connection,
+32 idle waits, and one dedicated listener, leaving the operational connection
+available for append. This functional evidence is intentionally not an AC4
+closure: independent Step 3 verdicts and the resource item's final lifecycle
+work are still pending, so AC4 remains unchecked and the `→ 2B/3` disposition
+remains in force.
+
 ## Spec-fidelity statement (filled at close)
 
-Deferred until AC4 closes and this item moves to `done/` — see the item
-that closes AC4 for the full statement.
+Deferred until AC4 is independently reviewed and this item moves to `done/`.

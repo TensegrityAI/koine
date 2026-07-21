@@ -32,9 +32,14 @@ background tickers, and serves worker traffic until `Ctrl-C`.
   anyway would launch a server whose auth is quietly disabled), plus
   optional `DATABASE_URL`, `KOINE_GRPC_ADDR` (default `0.0.0.0:7419`),
   `KOINE_MAX_LEASE_TTL_MS` (default 300000 — the ceiling every requested
-  lease is clamped to), and `KOINE_IDLE_POLL_MS` (default 1000 — the
-  drained-`Fetch` fallback poll). `run` then: connects/migrates via
-  `connect_pool`; spawns two detached `tokio::spawn` tickers on a shared
+  lease is clamped to), `KOINE_IDLE_POLL_MS` (default 1000 — the drained
+  `Fetch` correctness fallback), `KOINE_DB_MAX_CONNECTIONS` (default 16),
+  and `KOINE_DB_ACQUIRE_TIMEOUT_MS` (default 5000). Every duration and the
+  pool size must be non-zero; malformed or zero values refuse startup before
+  any connection, listener, ticker, or socket is created. `run` then:
+  connects/migrates via `connect_pool`, establishes `PgSignal`'s one
+  dedicated listener with the configured acquisition timeout, and spawns two
+  detached `tokio::spawn` tickers on a shared
   500ms `tokio::time::interval` — one running `SweepExpiredLeases` (reclaims
   expired leases so a crashed worker's job becomes claimable again with no
   separate process, ADR 0008), one running `PostgresOutboxRelay::relay_once`
@@ -103,3 +108,11 @@ background tickers, and serves worker traffic until `Ctrl-C`.
   transactional and transport behavior is exercised through `koine-grpc`'s
   test suites (which build the same `Deps` shape directly) rather than a
   `serve`-specific integration test.
+- The configured operational pool contains at most `N` connections; the
+  shared `PgSignal` listener is separate, making the process budget exactly
+  `N + 1`. The listener fans one `LISTEN` subscription to every idle Fetch
+  wait and does not consume operational capacity. `PgPresence` uses that
+  operational pool best-effort: saturation skips the write and an acquired
+  write has a 100 ms budget, so presence never delays a worker request.
+  Phase 3 must review this capacity budget before adding concurrent relay or
+  `EventSink` consumers to the operational pool.
