@@ -6,12 +6,13 @@ Operational Task 2 has a fail-closed semantic supply-chain gate in commits
 `348625d1731c29556d6432be5edfa449bd59d8a0` and
 `0c7f28e1a9e5756f61d9440816031c0335b565c0`, with final command-parser closure
 in `ba66ff4f887c5a4404e3a027faa44fae06a6ff3a`, immutable Postgres closure in
-`9888c7c`, and crate legal-file integrity in `1d8e1ed`. The Bash entrypoint
+`9888c7c`, crate legal-file integrity in `1d8e1ed`, and Rust-helper lexer
+closure in `fc4a651`. The Bash entrypoint
 requires the
 reviewed Node runtime and installed parser, while the ESM checker enumerates
 workflows and repository-owned shell scripts directly from the filesystem and
 parses policy-bearing YAML and JSON before enforcing exact executable
-identities. Its repository-owned suite currently has 61 passing probes.
+identities. Its repository-owned suite currently has 73 passing probes.
 
 The parent operational-closure item remains ongoing. This cut supplies current
 evidence for AC1 but does not mark it complete, close the item, or claim the
@@ -23,7 +24,7 @@ changed.
 
 ## Current verification
 
-- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 61 mutation
+- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 73 mutation
   and fail-closed probes pass.
 - `npm audit --json` reports 0 vulnerabilities at every severity.
 - `make md` installs the exact lock, runs `markdownlint-cli2` 0.23.1, and
@@ -45,9 +46,9 @@ Current verification identities:
 - Bash wrapper SHA-256:
   `70aec3c4af9b6b4796b1fa51443066e6c1306b7ab44057af126ae59628a42e42`
 - ESM checker SHA-256:
-  `1557d9637667d48cd98073c4edb826061ed434a30d19f5b949e2c142f899bc7a`
+  `cbc6abe0076d8029ed62e531cb97d0c783861cc6b995ec1eb22cead9b9c5eb14`
 - Mutation suite SHA-256:
-  `fe606107683d9fdaf5d75b8caf66471b380e074541b7ab3c1c5f80ad8f9aaca5`
+  `145e4148816850fa91a9481b686774e346d032c89dd2517ef0aeff74b4e4989a`
 - Direct `js-yaml` integrity:
   `sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==`
 
@@ -74,7 +75,15 @@ left-hand side was `$(TLA_ALIAS)`. GREEN adds those three class regressions,
 retains explicit `dash -lc` and `rustup run stable cargo install` coverage, and
 proves that a normal `bash --noprofile ./script.sh` invocation remains allowed.
 Operational Task 4 adds wrong-digest image and drifted, missing, and symlinked
-crate legal-file regressions. All 61 current probes pass.
+crate legal-file regressions. All 61 probes at that review point passed.
+
+Rust-helper lexer RED: the source regex accepted an unpinned executable
+`Postgres::default().start()` when the approved full chain appeared in a nested
+block comment or raw string. GREEN in `fc4a651` lexes identifiers,
+punctuation, numbers, and normal/raw strings, ignores line and nested block
+comments, and rejects unsupported or unterminated lexical forms. All 73 current
+probes pass; comments and unrelated strings cannot satisfy the executable
+consumer contract.
 
 ## Enforced policy surface
 
@@ -86,7 +95,10 @@ crate legal-file regressions. All 61 current probes pass.
   repository-local block actions remain allowed.
 - All jobs use `ubuntu-24.04`. Every workflow and Compose image requires an
   immutable digest. The canonical Postgres service must use the exact reviewed
-  Postgres 17 identity; tag-only and wrong-digest mutations fail.
+  Postgres 17 identity; tag-only and wrong-digest mutations fail. Both Rust
+  helpers must each contain exactly one executable token chain equivalent to
+  `Postgres::default().with_tag(EXACT_STRING).start(`, and every executable
+  `Postgres::default()` must be that chain.
 - Setup-node is allowed only in the canonical Markdownlint and supply-chain
   jobs, with exact Node, cache, step-order, and npm-install associations.
 - Setup-java is allowed only in the canonical TLA job, with exact Temurin
@@ -107,8 +119,9 @@ crate legal-file regressions. All 61 current probes pass.
   including environment, `command`, substitution, and chain wrappers.
 - Package and lock semantics enforce exact direct pins, registry URLs,
   SHA-512 integrity, Node/npm contracts, and the absence of lifecycle scripts.
-- Every crate has regular-file `LICENSE` and `NOTICE` copies byte-identical to
-  the repository root; content drift, absence, and symlinks fail closed.
+- The exact eleven workspace crate directories each have regular-file
+  `LICENSE` and `NOTICE` copies byte-identical to the repository root; missing,
+  extra, non-directory, symlinked, drifted, or absent entries fail closed.
 
 ## Authority and history preservation
 
@@ -123,10 +136,17 @@ Commit `bced29b` was the initial Operational Task 2 implementation. Its textual
 gate, 0.22.1 Markdownlint graph, reported probe count, hashes, and vulnerability
 finding are historical evidence only and are superseded by the current status,
 identities, semantic checker, audit result, and checksums above. Later review
-amendments and reports that described 23, 44, 51, 57, or 58 probes, and their
-associated checker/test hashes, are likewise superseded by the current
-61-probe suite and current hashes above. They are not presented as current
-verification.
+amendments and reports that described 23, 44, 51, 57, 58, 61, or 71 probes,
+and their associated checker/test hashes, are likewise superseded by the
+current 73-probe suite and current hashes above. In particular, these identities
+are historical only and are not current verification:
+
+- 61-probe checker:
+  `1557d9637667d48cd98073c4edb826061ed434a30d19f5b949e2c142f899bc7a`;
+  suite: `fe606107683d9fdaf5d75b8caf66471b380e074541b7ab3c1c5f80ad8f9aaca5`.
+- 71-probe checker:
+  `75d82046f1d617721b45539bd5a51a963cfe867e3b0731d5c1e6cbb4d5c4e931`;
+  suite: `45c2b91a6b1a74cf31b0a7babe5fd3a428bfe9f64dfe35ce5465443408e50d16`.
 
 ## Remaining concerns and owners
 
