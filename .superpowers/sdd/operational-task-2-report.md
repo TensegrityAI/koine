@@ -4,11 +4,12 @@
 
 Operational Task 2 has a fail-closed semantic supply-chain gate in commits
 `348625d1731c29556d6432be5edfa449bd59d8a0` and
-`0c7f28e1a9e5756f61d9440816031c0335b565c0`. The Bash entrypoint requires the
+`0c7f28e1a9e5756f61d9440816031c0335b565c0`, with final command-parser closure
+in `ba66ff4f887c5a4404e3a027faa44fae06a6ff3a`. The Bash entrypoint requires the
 reviewed Node runtime and installed parser, while the ESM checker enumerates
 workflows and repository-owned shell scripts directly from the filesystem and
 parses policy-bearing YAML and JSON before enforcing exact executable
-identities. Its repository-owned suite currently has 51 passing probes.
+identities. Its repository-owned suite currently has 57 passing probes.
 
 The parent operational-closure item remains ongoing. This cut supplies current
 evidence for AC1 but does not mark it complete, close the item, or claim the
@@ -20,7 +21,7 @@ changed.
 
 ## Current verification
 
-- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 51 mutation
+- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 57 mutation
   and fail-closed probes pass.
 - `npm audit --json` reports 0 vulnerabilities at every severity.
 - `make md` installs the exact lock, runs `markdownlint-cli2` 0.23.1, and
@@ -42,9 +43,9 @@ Current verification identities:
 - Bash wrapper SHA-256:
   `70aec3c4af9b6b4796b1fa51443066e6c1306b7ab44057af126ae59628a42e42`
 - ESM checker SHA-256:
-  `7091b1de1e80d731b3e81cf28c50feacfbadf804935371459dbaa81e946bac71`
+  `65becfbff924598f8125187ba6590e251159838f88aa60d2860ed7458e798f0e`
 - Mutation suite SHA-256:
-  `7670add0c4098ab22a2208e0ddb40630f17437b5cec65b3ef012b43a52a6c9ff`
+  `aba06bdb9a26fa5247af1af2a57ff3650c03fcc5598361772548b16018c4fb4f`
 - Direct `js-yaml` integrity:
   `sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==`
 
@@ -60,9 +61,17 @@ fixtures covering incomplete and wrapped Cargo installs, setup-java `latest`,
 `sh -c` download indirection, a download in `scripts/check-commit-message.sh`,
 and a duplicate `tla` target. It also accepted a shell-scanner symlink failure.
 
-GREEN: all 51 current probes pass. Malformed YAML/JSON, duplicate JSON keys,
-missing files, ignored workflows, scanner symlinks, missing Node/parser, and
-parser import failures all produce non-zero results.
+I1 GREEN at that review point: all 51 then-current probes passed. Malformed
+YAML/JSON, duplicate JSON keys, missing files, ignored workflows, scanner
+symlinks, missing Node/parser, and parser import failures produced non-zero
+results.
+
+Command-parser RED: before commit `ba66ff4`, the checker accepted
+`bash --noprofile -c`, `cargo +stable install`, and a Make target whose
+left-hand side was `$(TLA_ALIAS)`. GREEN adds those three class regressions,
+retains explicit `dash -lc` and `rustup run stable cargo install` coverage, and
+proves that a normal `bash --noprofile ./script.sh` invocation remains allowed.
+All 57 current probes pass.
 
 ## Enforced policy surface
 
@@ -82,10 +91,13 @@ parser import failures all produce non-zero results.
   invocation are exact. Gitleaks version 8.24.3, URL, digest, extraction, and
   execution are exact.
 - The only allowed Cargo installation is exact cargo-machete 0.9.2 with
-  `--locked`. Validated Makefile targets are unique.
+  `--locked`; Rustup selectors and wrappers fail. Validated Makefile targets
+  are literal and unique; dynamic left-hand-side expansion fails closed.
 - All repository-owned `.sh`, `.bash`, and `.zsh` scripts are enumerated from
   the filesystem outside the declared internal/generated/fixture exclusions.
-  Shell `-c` indirection is rejected without interpreting nested code.
+  The command options `-c` and `--command` for `bash`, `sh`, `zsh`, and `dash`
+  are rejected, including short clusters and preceding options, without
+  interpreting nested code. Normal script invocation remains allowed.
 - All other executable `curl`, `wget`, `npm`, and `npx` command forms are
   rejected across workflows, the Makefile, and enumerated shell scripts,
   including environment, `command`, substitution, and chain wrappers.
@@ -105,8 +117,8 @@ Commit `bced29b` was the initial Operational Task 2 implementation. Its textual
 gate, 0.22.1 Markdownlint graph, reported probe count, hashes, and vulnerability
 finding are historical evidence only and are superseded by the current status,
 identities, semantic checker, audit result, and checksums above. Later review
-amendments and reports that described 23 or 44 probes, and their associated
-checker/test hashes, are likewise superseded by the current 51-probe suite and
+amendments and reports that described 23, 44, or 51 probes, and their associated
+checker/test hashes, are likewise superseded by the current 57-probe suite and
 current hashes above. They are not presented as current verification.
 
 ## Remaining concerns and owners

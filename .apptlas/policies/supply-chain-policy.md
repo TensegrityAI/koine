@@ -15,7 +15,7 @@ pass `make supply-chain` before merge.
   The digest is checked both when downloading and before every execution.
 - The only approved Cargo installation is exactly
   `cargo install cargo-machete --version 0.9.2 --locked`; wrappers, omitted
-  flags, and other tools fail the gate.
+  flags, Rustup `+toolchain` selectors, and other tools fail the gate.
 - Node tools are exact direct dev dependencies in `package.json`: `js-yaml`
   `4.3.0` supplies the policy parser and `markdownlint-cli2` `0.23.1` supplies
   Markdownlint. They are installed from the committed `package-lock.json`
@@ -38,10 +38,15 @@ unsupported action source forms all fail closed.
 The checker enforces the exact action/comment allowlist, immutable runner and
 image forms, setup-node and setup-java job associations and inputs, exact
 Node/npm/package identities, exact TLA+ and gitleaks
-download/checksum/execution sequences, and unique validated Makefile targets.
+download/checksum/execution sequences, and unique literal validated Makefile
+targets. Any Make target definition containing `$(` or `${` in its left-hand
+side fails closed instead of being evaluated.
 It enumerates repository-owned shell scripts from the filesystem while
 excluding only declared generated, internal, and fixture trees. It rejects
-shell `-c` indirection instead of attempting to interpret nested code, and
+the `-c`/`--command` option of `bash`, `sh`, `zsh`, or `dash`, including short
+option clusters and preceding shell options, instead of attempting to
+interpret nested code. Normal shell script invocation without a command option
+remains allowed. The gate
 rejects every non-allowlisted `curl`, `wget`, `npm`, `npx`, or `cargo install`
 command across workflows, the Makefile, and those scripts. Its executable
 mutation suite uses repository-owned fixtures and runs as part of
