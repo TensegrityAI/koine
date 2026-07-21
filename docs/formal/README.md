@@ -217,13 +217,17 @@ contain them.
 ## Heartbeat-expiry mutation probe
 
 Before fencing `Expire` on the current deadline, the action was deliberately
-given the stale/early guard `now >= deadline - LeaseTtl`. `make tla` then
-reported `Invariant HeartbeatExpiryFence is violated` at graph depth 4 along
-the shortest trace `Init -> Lease -> Heartbeat -> Expire`: lease `1` was
-renewed through model time `2` and then incorrectly retired at model time `0`.
-The guard was replaced with `now >= deadline`; under the same constants,
-invariants, fairness, liveness property, and bounds, TLC completed with no
-error and the state counts recorded above.
+given the stale/early-class guard `now >= deadline - LeaseTtl`. `make tla`
+then reported `Invariant HeartbeatExpiryFence is violated` at graph depth 4
+along the shortest trace `Init -> Lease -> Heartbeat -> Expire`. This minimal
+witness is specifically **early-after-accepted-heartbeat**: `Lease` and
+`Heartbeat` both execute at `now = 0`, so the accepted heartbeat deadline
+remains `2` rather than moving, yet lease `1` is retired at `now = 0`. The
+mutant represents the broader stale/early defect class because its guard
+ignores the current deadline; this shortest witness does not claim to show a
+displaced deadline. The guard was replaced with `now >= deadline`; under the
+same constants, invariants, fairness, liveness property, and bounds, TLC
+completed with no error and the state counts recorded above.
 
 ## Drift rule
 

@@ -22,11 +22,14 @@
 
 ## Evidence (filled at close)
 
-- Task 2 formal RED (`make tla`): the deliberate stale/early expiry guard
-  violated `HeartbeatExpiryFence` at graph depth 4 after
-  `Init -> Lease -> Heartbeat -> Expire`. Lease `1` was renewed to deadline
-  `2`, then incorrectly retired at `now = 0`; 19 states were generated, 16
-  were distinct, and 10 remained queued when TLC found the counterexample.
+- Task 2 formal RED (`make tla`): the deliberate stale/early-class expiry
+  guard violated `HeartbeatExpiryFence` at graph depth 4 after
+  `Init -> Lease -> Heartbeat -> Expire`. This minimal witness is
+  early-after-accepted-heartbeat: `Lease` and `Heartbeat` both occur at
+  `now = 0`, so the deadline remains `2` rather than moving, but lease `1` is
+  retired at `now = 0`. The mutant ignores the current deadline and represents
+  the broader stale/early defect class; this trace does not show a displaced
+  deadline. TLC generated 19 states, found 16 distinct, and left 10 queued.
 - Task 2 formal GREEN (`make tla`): fencing `Expire` with `now >= deadline`
   completed with no error under the same invariants, fairness, and bounds;
   74,079 states generated, 18,598 distinct, zero queued, graph depth 24.
