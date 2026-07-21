@@ -22,6 +22,19 @@ license = "Apache-2.0"
 repository = "https://github.com/TensegrityAI/koine"
 authors = ["Marcos Saez <marcos.asp989@gmail.com>"]
 
+[workspace.dependencies]
+koine-application = { version = "0.1.0", path = "crates/koine-application" }
+koine-cli = { version = "0.1.0", path = "crates/koine-cli" }
+koine-domain = { version = "0.1.0", path = "crates/koine-domain" }
+koine-grpc = { version = "0.1.0", path = "crates/koine-grpc" }
+koine-http = { version = "0.1.0", path = "crates/koine-http" }
+koine-mcp = { version = "0.1.0", path = "crates/koine-mcp" }
+koine-observability = { version = "0.1.0", path = "crates/koine-observability" }
+koine-proto = { version = "0.1.0", path = "crates/koine-proto" }
+koine-server = { version = "0.1.0", path = "crates/koine-server" }
+koine-store-memory = { version = "0.1.0", path = "crates/koine-store-memory" }
+koine-store-postgres = { version = "0.1.0", path = "crates/koine-store-postgres" }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"

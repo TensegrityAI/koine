@@ -23,9 +23,9 @@ pass `make supply-chain` before merge.
   Node `22.23.1` through the reviewed setup-node action, the repository
   declares npm `10.9.8`, and lifecycle scripts are forbidden throughout the
   lock graph.
-- Container images use immutable digests when they are executable build or CI
-  inputs. Development-only images without a stable reviewed digest must be
-  called out explicitly.
+- Container images use immutable digests when they are executable build, test,
+  CI, or development inputs. The repository-owned Postgres service uses the
+  reviewed Postgres 17 digest enforced by the semantic gate.
 
 `make supply-chain` first performs the exact script-disabled lock install. A
 small Bash wrapper then fails if Node or the installed parser is unavailable
@@ -51,14 +51,6 @@ rejects every non-allowlisted `curl`, `wget`, `npm`, `npx`, or `cargo install`
 command across workflows, the Makefile, and those scripts. Its executable
 mutation suite uses repository-owned fixtures and runs as part of
 `make supply-chain`.
-
-## Temporary image exception
-
-`compose.yaml` may contain exactly `postgres:17` without a digest until
-**Operational Task 4** replaces it with the approved PostgreSQL digest. This
-is a narrow, gate-enforced exception: any other tag or image without a digest
-fails. The owner is Operational Task 4 and the deadline is before phase-2A
-operational closure; the exception and its gate branch are removed together.
 
 ## Residual trust roots
 

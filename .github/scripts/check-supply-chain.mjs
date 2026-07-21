@@ -29,6 +29,7 @@ const TLA_SHA256 = "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e05
 const TLA_URL = "https://github.com/tlaplus/tlaplus/releases/download/v$(TLA_TOOLS_VERSION)/tla2tools.jar";
 const JS_YAML_INTEGRITY = "sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==";
 const MARKDOWNLINT_INTEGRITY = "sha512-20JPI5W+HpV1OA+pUM712wgvL4GzYNUvbmhLU8KlEYJ1kCDx4soZ4/Xqd+WkLrPTOKMAn8SfO3zYFrK8GLlwQg==";
+const POSTGRES_IMAGE = "postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d";
 
 function fail(message) {
   throw new Error(message);
@@ -142,14 +143,10 @@ function validateActionSource(text, semanticActions, label) {
   }
 }
 
-function validateImage(image, location, state) {
+function validateImage(image, location) {
   if (typeof image !== "string") fail(`container image must be a string: ${location}`);
-  if (location === "compose.yaml:services.postgres" && image === "postgres:17") {
-    state.postgresExceptions += 1;
-    return;
-  }
-  if (location === "compose.yaml:services.postgres" && image.startsWith("postgres:")) {
-    fail(`temporary Postgres image exception drifted: ${location}: ${image}`);
+  if (location === "compose.yaml:services.postgres" && image !== POSTGRES_IMAGE) {
+    fail(`Postgres image identity drifted: ${location}: ${image}`);
   }
   if (!/@sha256:[0-9a-f]{64}$/u.test(image)) {
     fail(`container image must use a sha256 digest: ${location}: ${image}`);
@@ -276,12 +273,12 @@ function validateWorkflow(document, text, relative, state) {
     if (job["runs-on"] !== "ubuntu-24.04") fail(`hosted runner drift: ${location}`);
     if (job.container !== undefined) {
       const image = typeof job.container === "string" ? job.container : job.container?.image;
-      validateImage(image, `${location}.container`, state);
+      validateImage(image, `${location}.container`);
     }
     if (job.services !== undefined) {
       if (!isObject(job.services)) fail(`workflow services must be an object: ${location}`);
       for (const [serviceName, service] of Object.entries(job.services)) {
-        validateImage(service?.image, `${location}.services.${serviceName}`, state);
+        validateImage(service?.image, `${location}.services.${serviceName}`);
       }
     }
     if (!Array.isArray(job.steps)) fail(`workflow steps must be an array: ${location}`);
@@ -493,7 +490,7 @@ async function main() {
   }
   if (!versionAtLeast(process.versions.node, "22.23.1")) fail(`Node >=22.23.1 is required; found ${process.versions.node}`);
 
-  const state = { ciSeen: false, postgresExceptions: 0 };
+  const state = { ciSeen: false };
   const workflowRoot = path.join(root, ".github", "workflows");
   const workflowFiles = await enumerateFiles(workflowRoot, (file) => /\.ya?ml$/u.test(file));
   if (workflowFiles.length === 0) fail("filesystem scan failed: no workflows found");
@@ -509,9 +506,8 @@ async function main() {
   if (!isObject(compose) || !isObject(compose.services)) fail("compose services must be an object");
   for (const [serviceName, service] of Object.entries(compose.services)) {
     if (!isObject(service)) fail(`compose service must be an object: ${serviceName}`);
-    validateImage(service.image, `compose.yaml:services.${serviceName}`, state);
+    validateImage(service.image, `compose.yaml:services.${serviceName}`);
   }
-  if (state.postgresExceptions !== 1) fail("compose.yaml must contain the one temporary postgres:17 exception owned by Operational Task 4");
 
   validateMakefile(await readText(path.join(root, "Makefile")));
   const packageText = await readText(path.join(root, "package.json"));

@@ -1,6 +1,7 @@
 [package]
 name = "koine-cli"
 description = "Koiné operator CLI: trace, queue and job operations against the control plane."
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

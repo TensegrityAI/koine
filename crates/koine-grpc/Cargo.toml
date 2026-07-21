@@ -1,6 +1,7 @@
 [package]
 name = "koine-grpc"
-description = "Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats over `gRPC`."
+description = "Koiné data plane driving adapter: worker fetch stream, ack/fail, heartbeats over gRPC."
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,9 +10,9 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-koine-domain = { version = "0.1.0", path = "../koine-domain" }
-koine-application = { version = "0.1.0", path = "../koine-application" }
-koine-proto = { version = "0.1.0", path = "../koine-proto" }
+koine-domain = { workspace = true }
+koine-application = { workspace = true }
+koine-proto = { workspace = true }
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen"] }
 tokio = { version = "1", default-features = false, features = ["rt", "sync", "macros"] }
 tokio-stream = { version = "0.1", default-features = false, features = ["sync"] }
@@ -20,11 +21,11 @@ subtle = "2"
 uuid = "1"
 
 [dev-dependencies]
-koine-store-memory = { version = "0.1.0", path = "../koine-store-memory" }
+koine-store-memory = { workspace = true }
 # Ring-3 gRPC e2e (grpc_e2e.rs) needs the real Postgres adapters — matches
 # koine-store-postgres's own dev-deps versions exactly (same testcontainers
 # instance in the lockfile).
-koine-store-postgres = { version = "0.1.0", path = "../koine-store-postgres" }
+koine-store-postgres = { workspace = true }
 chrono = "0.4"
 tokio = { version = "1", default-features = false, features = ["time", "io-util", "net"] }
 # "net" (grpc_e2e.rs's TcpListenerStream) layered onto the "sync" feature the

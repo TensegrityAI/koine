@@ -1,6 +1,7 @@
 [package]
 name = "koine-domain"
 description = "Koiné domain layer: aggregates, domain events, state machines. No I/O, no async, no infra deps."
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

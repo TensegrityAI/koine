@@ -2,6 +2,7 @@
 
 use sqlx::PgPool;
 use testcontainers::ContainerAsync;
+use testcontainers::ImageExt as _;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
@@ -22,7 +23,11 @@ pub async fn pg() -> (ContainerAsync<Postgres>, PgPool) {
 /// Starts Postgres and returns (container guard, connection URL). Keep the
 /// guard alive for the test's duration or the container stops.
 pub async fn postgres_url() -> (ContainerAsync<Postgres>, String) {
-    let container = Postgres::default().start().await.expect("start postgres");
+    let container = Postgres::default()
+        .with_tag("17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d")
+        .start()
+        .await
+        .expect("start postgres");
     let port = container
         .get_host_port_ipv4(5432)
         .await

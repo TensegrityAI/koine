@@ -1,6 +1,7 @@
 [package]
 name = "koine-mcp"
 description = "Koiné agent control plane driving adapter: MCP server over the same use cases."
+publish = false
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,8 +10,8 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-koine-domain = { version = "0.1.0", path = "../koine-domain" }
-koine-application = { version = "0.1.0", path = "../koine-application" }
+koine-domain = { workspace = true }
+koine-application = { workspace = true }
 
 [lints]
 workspace = true
