@@ -9,8 +9,8 @@ an implementation-specific queue protocol.
 
 ## Status
 
-**Pre-alpha.** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. The remaining phase-2A exit gate is tracked by
-[`phase-2a-operational-closure.md`](.apptlas/backlog/ongoing/phase-2a-operational-closure.md).
+**Pre-alpha.** Phase 2A complete and hardened — next: phase 2B planning (not started). Phase 2B implementation is not authorized. The completed exit gate is recorded in
+[`phase-2a-operational-closure.md`](.apptlas/backlog/done/phase-2a-operational-closure.md).
 
 Available today:
 

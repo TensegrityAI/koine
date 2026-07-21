@@ -7,8 +7,8 @@ job is the source of truth (ADR 0004): all state derives from an append-only
 event log. That foundation provides traceability and replay today and supports
 future phase-5 repair/resume; repair/resume is not implemented in phase 2A.
 
-**Status:** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. The
-workspace, boundaries, and governance below exist; `koine-domain`,
+**Status:** Phase 2A complete and hardened — next: phase 2B planning (not started). Phase 2B implementation is not authorized. The workspace,
+boundaries, and governance below exist; `koine-domain`,
 `koine-application`, `koine-store-memory`, `koine-store-postgres`,
 `koine-proto`, `koine-grpc`, and `koine-server` now have real behavior (see
 the crate table and their pages below). The data plane is a real,

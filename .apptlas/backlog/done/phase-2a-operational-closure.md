@@ -1,6 +1,6 @@
 # Close phase-2A operational and supply-chain debt
 
-- **State:** ongoing
+- **State:** done
 - **Origin:** phase-2A zero-debt hardening design
 - **Epic:** ../../epics/phase-2-data-plane.md
 
@@ -10,12 +10,12 @@
 
 ## Acceptance criteria
 
-- [ ] AC1: repository-owned actions/downloads/tooling satisfy the accepted immutable-input policy and a fail-closed semantic gate rejects floating, parser, filesystem, and source-form bypasses — *verify:* `make supply-chain` plus its repository-owned mutation suite.
-- [ ] AC2: protobuf builds with a deliberately invalid `PROTOC`, proving vendored compiler selection — *verify:* isolated-target `cargo build -p koine-proto`.
-- [ ] AC3: internal dependency edges are identical before/after centralization; descriptions contain no backticks and every crate is non-publishable — *verify:* normalized metadata diff and manifest scan.
-- [ ] AC4: every implemented crate's package file list contains required sources/assets/licenses — *verify:* `cargo package --allow-dirty --list -p ...`.
-- [ ] AC5: README, roadmap, living context, epic, env reference, architecture wiki, and backlog agree about present/future behavior — *verify:* docs/spec review.
-- [ ] AC6: formal, full CI, real Postgres dev-loop, real TCP/Postgres gRPC, server startup/shutdown, and zero-debt audit are fresh green — *verify:* final gate commands.
+- [x] AC1: repository-owned actions/downloads/tooling satisfy the accepted immutable-input policy and a fail-closed semantic gate rejects floating, parser, filesystem, and source-form bypasses — *verify:* `make supply-chain` plus its repository-owned mutation suite.
+- [x] AC2: protobuf builds with a deliberately invalid `PROTOC`, proving vendored compiler selection — *verify:* isolated-target `cargo build -p koine-proto`.
+- [x] AC3: internal dependency edges are identical before/after centralization; descriptions contain no backticks and every crate is non-publishable — *verify:* normalized metadata diff and manifest scan.
+- [x] AC4: every implemented crate's package file list contains required sources/assets/licenses — *verify:* `cargo package --allow-dirty --list -p ...`.
+- [x] AC5: README, roadmap, living context, epic, env reference, architecture wiki, and backlog agree about present/future behavior — *verify:* docs/spec review.
+- [x] AC6: formal, full CI, real Postgres dev-loop, real TCP/Postgres gRPC, server startup/shutdown, and zero-debt audit are fresh green — *verify:* final gate commands.
 
 ## Dependencies
 
@@ -49,7 +49,7 @@
   preparatory wording: slice review is complete; the parent checkboxes remain
   open until Task 6.**
 
-### Operational Task 6 first-wave evidence (2026-07-22)
+### Operational Task 6 first-wave evidence (historical pre-review snapshot)
 
 This evidence was collected on `feat/phase-2a-hardening` at `d207b9e`, before
 the Task 6 evidence commit. Raw command output and per-command metadata are in
@@ -106,16 +106,83 @@ crates/*/Cargo.toml` exited 1 with no output, while `rg -l` found all 11 of 11
 workspace manifests. The ongoing inventory contains exactly this operational
 item; the todo inventory is empty.
 
-**Independent parent review is pending.** These first-wave observations do not
-self-certify Task 6 Step 4, the parent Definition of Done, or any acceptance
-criterion. AC1–AC6 remain unchecked, this item remains `ongoing`, and the live
-state remains: phase 2A implementation complete; zero-debt hardening active;
-phase 2B blocked.
+At this first-wave checkpoint, independent parent review was pending. The
+observations did not self-certify Task 6 Step 4, the parent Definition of Done,
+or any acceptance criterion; AC1–AC6 remained unchecked and the item remained
+`ongoing`. The independent review and closure evidence below supersede only
+that pending status, not the recorded command results.
+
+### Independent parent review and closure evidence (2026-07-22)
+
+The independent Step 4 reviewer read the approved designs, ADRs, policies, all
+three hardening plans, cumulative 45-commit diff, task evidence, and the
+high-risk implementation surfaces. The
+[durable review](../../../.superpowers/sdd/phase-2a-final-review.md) records
+the dual verdict against reviewed HEAD `3b0152e`.
+
+Spec compliance: ✅ Faithful to the approved Phase 2A zero-debt hardening design and ADR-0016/ADR-0017 as amended.
+
+Quality: Approved — no Critical, Important, or Minor findings attributable to closed phases.
+
+Exit decision: Approved to close Phase 2A and begin Phase 2B planning; Phase 2B implementation is not authorized.
+
+The reviewer independently reproduced:
+
+| Exact command | Exit | Elapsed | Result |
+| --- | ---: | ---: | --- |
+| `make supply-chain` | 0 | 3.938 s | 73/73 probes; 88 npm packages audited; 0 vulnerabilities |
+| `make tla` | 0 | 1.037 s | 74,079 generated; 18,598 distinct; 0 queued; depth 24; no error |
+| `cargo test -p koine-store-postgres --test dispatcher --test signal` (first run) | 101 | 20.702 s | dispatcher 9/9; signal 6/7; environmental `PortNotExposed` before the affected test body |
+| same exact Postgres command (confirmation) | 0 | 15.337 s | dispatcher 9/9 and signal 7/7; 16/16 total |
+| `cargo test -p koine-grpc --test grpc_e2e` | 0 | 6.115 s | 2/2 over real TCP and Postgres |
+| `PROTOC=/definitely/missing/protoc CARGO_TARGET_DIR=<fresh> cargo build -p koine-proto` | 0 | 6.942 s | poisoned-host fresh build succeeded; validated temporary target removed |
+| `cargo metadata --format-version 1 --no-deps \| jq <extended-projection>` | 0 | 0.023 s | 11 packages; exact expected SHA-256 `e42c4ae18dc934ef3d321c3453284668c2b2647f001625aa969def95b1d40cb4` |
+| `git diff --check b0752cb..HEAD` | 0 | <0.1 s | no output |
+
+The first targeted Postgres run's only error was testcontainers
+`PortNotExposed` while resolving TCP 5432 from a just-started container.
+Normal harness cleanup had already removed that container, and no Koiné
+assertion or product path ran. The exact isolated test then passed 1/1, the
+full signal binary passed 7/7, three further signal repetitions passed 7/7,
+and the exact combined confirmation passed 16/16. This is recorded as a
+non-reproducing Docker/testcontainers environment event, not a closed-phase
+finding; it is not a current failing gate.
+
+The checked ACs map to exact evidence:
+
+- **AC1:** Task 6 `make supply-chain` passed 73/73 in 3.447 s; independent
+  reproduction passed 73/73 in 3.938 s. The reviewed semantic checker,
+  identities, and mutation coverage satisfy ADR-0017 as amended.
+- **AC2:** Operational Task 3 records the poisoned-`PROTOC` RED/GREEN proof;
+  the reviewer independently built `koine-proto` from a fresh target with
+  `PROTOC=/definitely/missing/protoc`, exit 0 in 6.942 s.
+- **AC3:** the extended current metadata projection is byte-identical to its
+  captured expected projection and hashes to
+  `e42c4ae18dc934ef3d321c3453284668c2b2647f001625aa969def95b1d40cb4`;
+  the manifest scan covers all 11 non-publishable crates and compliant
+  descriptions.
+- **AC4:** the reviewer reran all seven implemented-crate package lists: 14,
+  16, 9, 12, 23, 13, and 11 files respectively. Every list contains its
+  source/build inputs plus `LICENSE` and `NOTICE`; proto and Postgres lists
+  also contain the required contract and two migrations.
+- **AC5:** independent present-versus-future review found README, living
+  context, roadmap, epic, environment, architecture, formal documentation,
+  and backlog truthful at the review boundary. This closure change advances
+  only the approved phase state and retains all phase-2B/later scope as future.
+- **AC6:** the first wave records fresh formal, CI, Postgres, gRPC, dev-loop,
+  serve/startup/shutdown, and residue evidence. The reviewer additionally
+  reproduced supply-chain, TLC, targeted Postgres concurrency/resource tests,
+  and real TCP/Postgres gRPC without a reproducible product failure.
 
 ## Spec-fidelity statement (filled at close)
 
-Pending independent Task 6 dual-verdict review; no `Faithful` verdict is
-recorded by the implementer.
+Faithful.
+
+The closed item implements hardening design §§6–10 and ADR-0017, and its
+dependencies implement ADR-0016 and hardening design §§3–5. The independent
+review found no Critical, Important, or Minor divergence attributable to
+phases 0, 1, or 2A. Phase 2B planning may begin; implementation remains
+unauthorized and future scope remains unchanged.
 
 ## 2026-07-22 Task 5 truth-reconciliation amendment
 
@@ -151,10 +218,11 @@ Operational Tasks 2, 3, and 4 each passed their recorded independent reviews.
   **Spec: Faithful. Quality: Approved — 0 findings.** Its earlier “pending
   independent review” text is historical and superseded by this verdict.
 
-These are slice verdicts, not the parent DoD review. AC1–AC6 remain unchecked
-until Task 6 supplies the fresh integrated evidence and independent parent
-review.
+These were slice verdicts, not the parent DoD review. At the Task 5 snapshot,
+AC1–AC6 remained unchecked until Task 6 supplied fresh integrated evidence and
+independent parent review. The Task 6 closure evidence above now supplies that
+review and supersedes the earlier pending state.
 
-AC1–AC6 above remain unchecked and this item remains `ongoing`. Task 5 does
-not run or claim Task 6's fresh product exit gate, independent parent review,
-or phase-unblock decision.
+At the Task 5 snapshot, this item remained `ongoing`; Task 5 did not run or
+claim Task 6's fresh product exit gate, independent parent review, or
+phase-unblock decision. That historical boundary remains accurate.

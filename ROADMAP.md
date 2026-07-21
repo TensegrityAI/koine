@@ -6,8 +6,7 @@
 > `.apptlas/epics/`; the full design is in the
 > [design spec](docs/superpowers/specs/2026-07-16-koine-design.md).
 
-**Now:** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. The operational closure item and its Task 6 exit gate must close
-before phase-2B planning is authorized.
+**Now:** Phase 2A complete and hardened — next: phase 2B planning (not started). Phase 2B implementation is not authorized; no phase-2B item or plan exists.
 
 ## The phases
 
@@ -15,18 +14,18 @@ before phase-2B planning is authorized.
 | --- | --- | --- | --- |
 | **0 — Foundations** | Complete | 11-crate workspace, compiled hexagonal boundaries, AOL governance, CI | Full CI green on first push |
 | **1 — Event-sourced core** | Complete | `Job` domain and event taxonomy, ports, Postgres and in-memory stores, transactional outbox, dispatch projection; enqueue → lease → ack/fail → retry → park | Test rings 1–3 green; projections replay from zero to identical state |
-| **2 — Data plane** | 2A implemented; hardening active; 2B blocked | **2A:** TLA+ lease model, `koine-proto` v1, authenticated gRPC server, leases/heartbeats/recovery. **2B planned:** Python SDK, conformance, SDK demo, benchmarks, publication decision, test-support dedup | A real Python worker processes jobs with demonstrable crash recovery; conformance passes; TLC verifies the stated protocol properties |
+| **2 — Data plane** | 2A complete and hardened; 2B planning not started | **2A:** TLA+ lease model, `koine-proto` v1, authenticated gRPC server, leases/heartbeats/recovery. **2B future scope:** Python SDK, conformance, SDK demo, benchmarks, publication decision, test-support dedup | A real Python worker processes jobs with demonstrable crash recovery; conformance passes; TLC verifies the stated protocol properties |
 | **3 — Control plane + dashboard v0** | Planned | REST + OpenAPI, `koine` CLI (`koine trace`), full observability (OTel + Prometheus), Vite/React/d3 dashboard embedded via rust-embed | OTel traces visible producer → worker cross-language; dashboard live over SSE from a single binary |
 | **4 — Agentic** | Planned | MCP adapter (enqueue, inspect, operate), rich history projections, dashboard v1 (d3 causal trace graph) | An agent enqueues, inspects history, and operates the broker via MCP |
 | **5 — Durable execution** | Planned | Checkpoints, signals, human-in-the-loop approvals, **repair & resume** (API + UX) | A job fails at step N, is repaired, and resumes from its last checkpoint |
 
 ## Phase 2 detail
 
-Phase 2A currently provides the event-sourced stores and dispatch path, the
+Phase 2A provides the event-sourced stores and dispatch path, the
 authenticated `koine.v1` server-streaming worker API, heartbeat/expiry fencing,
 one shared Postgres notification listener, bounded database resources, and the
-TLC-checked lease model. The final zero-debt exit gate remains open; this is why
-phase 2B is blocked even though its scope is known.
+TLC-checked lease model. Its zero-debt exit gate is closed. Phase 2B planning
+is authorized but not started, and phase 2B implementation is not authorized.
 
 The legitimate phase-2B scope remains:
 

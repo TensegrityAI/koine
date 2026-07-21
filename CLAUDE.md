@@ -1,10 +1,11 @@
 # CLAUDE.md — Koiné living context
 
-**Current phase:** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. (See design spec §6 for all phases.)
+**Current phase:** Phase 2A complete and hardened — next: phase 2B planning (not started). Phase 2B implementation is not authorized. (See design spec §6 for all phases.)
 
-Active plan:
-[`2026-07-21-koine-operational-closure.md`](docs/superpowers/plans/2026-07-21-koine-operational-closure.md),
-Task 5 complete; Task 6 is the remaining exit gate.
+**Active plan:** none. The most recently completed plan is
+[`2026-07-21-koine-operational-closure.md`](docs/superpowers/plans/2026-07-21-koine-operational-closure.md).
+Phase 2B planning is authorized but has not started; no phase-2B item or plan
+exists yet.
 
 ## Quick orientation
 
@@ -27,3 +28,7 @@ Task 5 complete; Task 6 is the remaining exit gate.
 - 2026-07-19 — Phase 2A implementation checkpoint: TLA+ lease-protocol model TLC-checked in CI (`tla` job); `koine.v1` wire contract (`koine-proto`); authenticated `gRPC` data-plane server (`koine-grpc` + `koine-server serve`) with `DispatchSignal`/`WorkerPresence` ports, Postgres `LISTEN`/`NOTIFY` wakeup, worker presence table; crash recovery proven over a real socket + real Postgres. Epic items 1–6 delivered. At this checkpoint carryover AC4 and zero-debt hardening were still open, so this was implementation completion rather than the operational exit gate.
 - 2026-07-21 — Atomic lease retirement and Postgres resource hardening closed: heartbeat and expiry now serialize on the live grant; one listener is shared across Fetch waits; the operational pool is bounded; presence latency is best-effort and bounded.
 - 2026-07-22 — Operational Tasks 1–5 complete: immutable executable inputs, the fail-closed 73-probe semantic supply-chain gate, vendored protobuf compilation, immutable Postgres consumers, centralized manifest edges, non-publishable crates, package-file boundaries, and public/lifecycle truth are reconciled. Task 6 remains blocked on fresh exit evidence and independent review.
+- 2026-07-22 — Phase 2A zero-debt hardening closed after fresh formal, CI,
+  Postgres, gRPC, product, residue, package, and supply-chain evidence plus an
+  independent dual-verdict review with no attributable findings. Phase 2B
+  planning is next but not started; phase 2B implementation is not authorized.

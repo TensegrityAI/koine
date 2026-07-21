@@ -6,7 +6,7 @@ Governed by the
 every page is updated in the same PR as the code it describes (Definition of
 Done item 4), so this wiki is trustworthy by construction, not by discipline.
 
-Current state: phase 2A implementation complete; zero-debt hardening active; phase 2B blocked.
+Current state: Phase 2A complete and hardened — next: phase 2B planning (not started). Phase 2B implementation is not authorized.
 
 ## Pages
 

@@ -1,7 +1,6 @@
 # Epic: Phase 2 — Data plane
 
-- **State:** in progress — phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. Items 1–6 and the phase-2A wiki evidence
-  are delivered; items 7–11 plus `tests/support` dedup remain phase 2B.
+- **State:** in progress — Phase 2A complete and hardened — next: phase 2B planning (not started). Items 1–6 and the phase-2A wiki evidence are delivered; items 7–11 plus `tests/support` dedup remain future phase-2B scope. Phase 2B implementation is not authorized.
 - **Implements:** design spec §2 (data plane, contract), §3 (delivery), §6 phase 2
 - **Exit criteria:** a real Python worker processes jobs with demonstrable
   crash recovery; the conformance suite passes against the Python SDK; TLC
@@ -64,8 +63,8 @@
 10. **→ 2B** — **Benchmarks (baseline)** — not started.
 11. **→ 2B (or later)** — **crates.io name reservation/publication
     decision** — not started. Manifest cleanup and package-file inspection are
-    complete, but every crate remains deliberately `publish = false`; Task 6
-    must close before phase-2B publication planning starts.
+    complete, but every crate remains deliberately `publish = false`. Phase 2B
+    planning has not started, and implementation is not authorized.
 12. **DONE (2A)** — **Wiki pages** — `koine-proto.md`, `koine-grpc.md`
     added; `koine-application`/`koine-store-memory`/`koine-store-postgres`/
     `koine-server`/`overview`/`README` updated for the ports, adapters, and
