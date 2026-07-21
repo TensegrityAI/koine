@@ -541,3 +541,21 @@ Every directory under `crates/` also carries regular-file `LICENSE` and
 gate and its mutation suite fail when either file is absent, content-drifted,
 or replaced by a symlink. This guard preserves the package-file requirement
 without weakening the repository scanner's fail-closed symlink rule.
+
+## 2026-07-21 applicable Operational Task 4 review amendment
+
+Independent review found that the first Task 4 gate revision proved only the
+Compose Postgres identity and filtered first-level crate symlinks out of its
+legal-file scan. The applicable gate now validates both versioned Rust helpers,
+`crates/koine-store-postgres/tests/support/mod.rs` and
+`crates/koine-grpc/tests/support/mod.rs`, independently. Each must contain
+exactly one `Postgres::default().with_tag(...)` call with the approved Postgres
+17 tag-plus-digest identity; missing, duplicate, tag-only, and wrong-digest
+forms fail the mutation suite.
+
+The crate scanner also requires exactly the eleven current workspace crate
+directories. Any first-level symlink or non-directory entry fails without
+being followed, and a missing or extra crate fails before all eleven regular
+`Cargo.toml`, `LICENSE`, and `NOTICE` files are checked. The expanded suite has
+71 probes, including an exact historical `postgres:17` Compose mutation and
+separate tag-only and wrong-digest mutations for both Rust consumers.

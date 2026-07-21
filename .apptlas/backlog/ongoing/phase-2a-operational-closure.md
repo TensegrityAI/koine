@@ -37,6 +37,9 @@
 - Operational Task 4 current evidence is recorded in
   [the image, manifest, and package report](../../../.superpowers/sdd/operational-task-4-report.md).
   The approved Postgres digest now covers Compose and both real test harnesses;
+  the semantic gate independently enforces exactly one approved consumer in
+  each versioned Rust helper; and its crate scan requires the exact eleven real
+  directories without following symlinks or accepting other entry types;
   normalized internal dependency edges are byte-identical; all crate manifests
   are non-publishable; and the seven implemented package lists contain their
   required sources, assets, `LICENSE`, and `NOTICE`. AC3 and AC4 remain

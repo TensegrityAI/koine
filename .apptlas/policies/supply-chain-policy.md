@@ -25,7 +25,11 @@ pass `make supply-chain` before merge.
   lock graph.
 - Container images use immutable digests when they are executable build, test,
   CI, or development inputs. The repository-owned Postgres service uses the
-  reviewed Postgres 17 digest enforced by the semantic gate.
+  reviewed Postgres 17 digest enforced by the semantic gate. Each of the two
+  versioned Rust test helpers (`koine-store-postgres` and `koine-grpc`) must
+  contain exactly one `Postgres::default().with_tag(...)` consumer with that
+  same reviewed tag-plus-digest identity; a missing, duplicate, tag-only, or
+  drifted consumer fails closed.
 - Every workspace crate carries regular-file `LICENSE` and `NOTICE` copies that
   are byte-identical to the repository-root originals. Missing, drifted, or
   symlinked legal files fail the semantic gate before package inspection.
@@ -44,9 +48,14 @@ Node/npm/package identities, exact TLA+ and gitleaks
 download/checksum/execution sequences, and unique literal validated Makefile
 targets. Any Make target definition containing `$(` or `${` in its left-hand
 side fails closed instead of being evaluated.
-It also enumerates every directory under `crates/`, requires a regular
-`Cargo.toml`, `LICENSE`, and `NOTICE`, and compares both legal files byte for
-byte with the repository-root originals.
+It requires the exact eleven workspace crate directories under `crates/`:
+`koine-application`, `koine-cli`, `koine-domain`, `koine-grpc`, `koine-http`,
+`koine-mcp`, `koine-observability`, `koine-proto`, `koine-server`,
+`koine-store-memory`, and `koine-store-postgres`. Every first-level entry must
+be a real directory; symlinks and other filesystem objects are rejected
+without being followed. Each directory requires a regular `Cargo.toml`,
+`LICENSE`, and `NOTICE`, and both legal files are compared byte for byte with
+the repository-root originals.
 It enumerates repository-owned shell scripts from the filesystem while
 excluding only declared generated, internal, and fixture trees. It rejects
 the `-c`/`--command` option of `bash`, `sh`, `zsh`, or `dash`, including short
