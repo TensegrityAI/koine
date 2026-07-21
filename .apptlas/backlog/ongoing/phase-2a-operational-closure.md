@@ -49,7 +49,73 @@
   preparatory wording: slice review is complete; the parent checkboxes remain
   open until Task 6.**
 
+### Operational Task 6 first-wave evidence (2026-07-22)
+
+This evidence was collected on `feat/phase-2a-hardening` at `d207b9e`, before
+the Task 6 evidence commit. Raw command output and per-command metadata are in
+`/tmp/koine-operational-task-6.6Ciq9i`; the ignored
+`.superpowers/sdd/operational-task-6-report.md` records the exhaustive ledger.
+
+The exact automated gate sequence produced:
+
+| Command | Exit | Elapsed | Fresh result |
+| --- | ---: | ---: | --- |
+| `make supply-chain` | 0 | 3.447 s | 73/73 repository-owned probes passed; npm audited 88 packages with 0 vulnerabilities |
+| `make tla` | 0 | 1.048 s | 74,079 states generated; 18,598 distinct; 0 queued; depth 24; no error |
+| `make ci` | 0 | 43.238 s | 127 tests passed and 0 failed; rustdoc, deny, typos, 80-file Markdownlint, machete, and 73/73 supply-chain probes passed |
+| `cargo test -p koine-store-postgres` | 0 | 36.117 s | 30 tests passed and 0 failed against real testcontainers Postgres |
+| `cargo test -p koine-grpc --test grpc_e2e` | 0 | 8.242 s | 2 tests passed and 0 failed over real TCP and real Postgres: presence plus crash recovery |
+| `git diff --check` | 0 | 0.003 s | no output |
+
+The product exercise preserved the prior running-state boundary. Before the
+exercise, `docker compose ps --all` had no service and Postgres was not
+running. `docker compose config --images` resolved exactly
+`postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d`.
+`docker compose up -d postgres` exited 0 in 0.420 s, and `pg_isready` reported
+ready on its first bounded probe in 0.198 s. The following product commands
+then produced:
+
+| Command or check | Exit | Elapsed | Observed result |
+| --- | ---: | ---: | --- |
+| `cargo run -p koine-server -- dev-loop` | 0 | 3.162 s | plain `enqueued,leased,started,succeeded`; crash `enqueued,leased,lease_expired,retry_scheduled,leased,started,succeeded`; retry `enqueued,leased,started,failed,retry_scheduled,leased,started,succeeded`; all terminal |
+| `cargo build -p koine-server` | 0 | 0.108 s | development binary built |
+| `KOINE_WORKER_TOKEN=phase2a-smoke target/debug/koine-server serve` | 0 after `SIGINT` and `wait` | 0.145 s | PID 1849185 remained alive; its socket listened on `0.0.0.0:7419`; the authenticated-data-plane phrase appeared; readiness took 2 of 20 bounded 100 ms probes |
+| `rg -n 'authenticated grpc data plane' /tmp/koine-serve-smoke.log` | 0 | included above | matched line 1 |
+| conditional `docker compose stop postgres` | 0 | 0.396 s | executed because Postgres was not running before the exercise |
+
+The server cleanup trap had no remaining work: PID 1849185 was absent and
+port 7419 was no longer listening. Final Compose inspection found no running
+Postgres service and the exercise-created container was `Exited (0)`. In
+accordance with the non-destructive restoration constraint, no `down`, volume
+removal, or network removal ran; the stopped container and its data volume
+remain. The final configured image retained the exact reviewed digest.
+
+The exact closed-phase residue commands produced:
+
+| Command | Exit | Output and interpretation |
+| --- | ---: | --- |
+| `find .apptlas/backlog/todo -maxdepth 1 -type f ! -name .gitkeep -print` | 0 | empty; no todo item |
+| `rg -n 'todo!\(\|unimplemented!\(' crates` | 1 | empty; ripgrep found no fake-completeness macro |
+| stale/floating-phrase `rg` from Task 6 Step 3 | 1 | empty; no prohibited match |
+| `rg -L '^publish = false$' crates/*/Cargo.toml` | 0 | 11 matching lines; in ripgrep `-L` follows symlinks rather than selecting non-matches |
+| `git status --short` | 0 | empty before this evidence edit |
+
+The ambiguous short-option command was supplemented without replacing its
+exact result: `rg --files-without-match '^publish = false$'
+crates/*/Cargo.toml` exited 1 with no output, while `rg -l` found all 11 of 11
+workspace manifests. The ongoing inventory contains exactly this operational
+item; the todo inventory is empty.
+
+**Independent parent review is pending.** These first-wave observations do not
+self-certify Task 6 Step 4, the parent Definition of Done, or any acceptance
+criterion. AC1–AC6 remain unchecked, this item remains `ongoing`, and the live
+state remains: phase 2A implementation complete; zero-debt hardening active;
+phase 2B blocked.
+
 ## Spec-fidelity statement (filled at close)
+
+Pending independent Task 6 dual-verdict review; no `Faithful` verdict is
+recorded by the implementer.
 
 ## 2026-07-22 Task 5 truth-reconciliation amendment
 
