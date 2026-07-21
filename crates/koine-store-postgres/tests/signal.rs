@@ -11,9 +11,12 @@ use koine_application::wrap_events;
 use koine_domain::{Job, Priority, QueueName, RetryPolicy, WorkerId};
 use koine_store_memory::{FixedClock, SeededIds};
 use koine_store_postgres::{PgPresence, PgSignal, PoolConfig, PostgresEventStore, connect_pool};
+use std::future::{Future as _, poll_fn};
 use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
-use std::time::Duration;
+use std::task::Poll;
+use std::time::{Duration, Instant};
+use tokio::sync::oneshot;
 
 // Type alias for presence row with timestamps
 type PresenceRow = (
@@ -65,20 +68,96 @@ async fn fx_with_pool_size(max_connections: NonZeroU32) -> Fx {
             .single()
             .expect("ts"),
     ));
-    let pool_clone1 = pool.clone();
-    let pool_clone2 = pool.clone();
-    let pool_clone3 = pool.clone();
+    let signal = PgSignal::connect(&url, pool.clone(), Duration::from_secs(5))
+        .await
+        .expect("connect listener");
     Fx {
         _guard: guard,
-        pool: pool_clone3,
+        pool: pool.clone(),
         store: PostgresEventStore::new(pool.clone()),
-        signal: PgSignal::new(pool_clone1),
-        presence: PgPresence::new(pool_clone2),
+        signal,
+        presence: PgPresence::new(pool),
         ids,
         clock,
         queue: QueueName::new("default").expect("q"),
         worker: WorkerId::new("w1").expect("w"),
     }
+}
+
+async fn append_job(
+    store: &PostgresEventStore,
+    ids: &SeededIds,
+    clock: &FixedClock,
+    queue: QueueName,
+) {
+    let stream = ids.job_id();
+    let event = Job::initial_event(
+        queue,
+        serde_json::json!({"job": stream.to_string()}),
+        Priority(0),
+        RetryPolicy::default(),
+        None,
+    );
+    let envs = wrap_events(
+        ids,
+        clock,
+        stream,
+        0,
+        ids.correlation_id(),
+        None,
+        None,
+        vec![event],
+    );
+    store.append(stream, 0, envs).await.expect("enqueue");
+}
+
+async fn wait_after_subscribing(
+    signal: Arc<PgSignal>,
+    queue: QueueName,
+    timeout: Duration,
+    ready: oneshot::Sender<()>,
+) {
+    let mut wait = std::pin::pin!(signal.wait(&queue, timeout));
+    let mut ready = Some(ready);
+    poll_fn(|cx| match wait.as_mut().poll(cx) {
+        Poll::Ready(()) => panic!("signal wait completed before it could subscribe"),
+        Poll::Pending => {
+            ready
+                .take()
+                .expect("readiness is signalled once")
+                .send(())
+                .expect("readiness receiver remains alive");
+            Poll::Ready(())
+        }
+    })
+    .await;
+    wait.await;
+}
+
+async fn listener_pid(pool: &sqlx::PgPool, previous_pid: Option<i32>) -> i32 {
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            let pid = sqlx::query_scalar::<_, i32>(
+                r"SELECT pid
+                   FROM pg_stat_activity
+                   WHERE datname = current_database()
+                     AND query LIKE 'LISTEN%koine_dispatch%'
+                     AND ($1::int IS NULL OR pid <> $1)
+                   ORDER BY backend_start DESC
+                   LIMIT 1",
+            )
+            .bind(previous_pid)
+            .fetch_optional(pool)
+            .await
+            .expect("inspect listener activity");
+            if let Some(pid) = pid {
+                return pid;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("listener becomes visible in pg_stat_activity")
 }
 
 #[tokio::test]
@@ -103,41 +182,17 @@ async fn signal_wait_wakes_on_append_to_queue() {
     let queue_clone = queue.clone();
     let signal = Arc::new(f.signal);
     let signal_wait = Arc::clone(&signal);
-    let store = Arc::new(f.store);
-    let store_append = Arc::clone(&store);
-    let ids = Arc::clone(&f.ids);
-    let clock = Arc::clone(&f.clock);
     let queue_append = f.queue.clone();
+    let (ready_tx, ready_rx) = oneshot::channel();
 
     let wait_task = tokio::spawn(async move {
         let start = std::time::Instant::now();
-        signal_wait.wait(&queue_clone, Duration::from_secs(5)).await;
+        wait_after_subscribing(signal_wait, queue_clone, Duration::from_secs(5), ready_tx).await;
         start.elapsed()
     });
 
-    // Give the wait to settle
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    // Append a job to the queue (which should trigger NOTIFY)
-    let stream = ids.job_id();
-    let event = Job::initial_event(
-        queue_append,
-        serde_json::json!({"job": stream.to_string()}),
-        Priority(0),
-        RetryPolicy::default(),
-        None,
-    );
-    let envs = wrap_events(
-        ids.as_ref(),
-        clock.as_ref(),
-        stream,
-        0,
-        ids.correlation_id(),
-        None,
-        None,
-        vec![event],
-    );
-    store_append.append(stream, 0, envs).await.expect("enqueue");
+    ready_rx.await.expect("wait subscribed");
+    append_job(&f.store, &f.ids, &f.clock, queue_append).await;
 
     let elapsed = wait_task.await.expect("wait task completed");
 
@@ -145,6 +200,89 @@ async fn signal_wait_wakes_on_append_to_queue() {
         elapsed < Duration::from_secs(1),
         "signal wait returned promptly on append, elapsed: {elapsed:?}"
     );
+}
+
+#[tokio::test]
+async fn thirty_two_waiters_share_one_listener_without_starving_append() {
+    const WAITERS: usize = 32;
+
+    let f = fx_with_pool_size(NonZeroU32::new(1).expect("non-zero pool size")).await;
+    let signal = Arc::new(f.signal);
+    let mut waits = Vec::with_capacity(WAITERS);
+    let mut readiness = Vec::with_capacity(WAITERS);
+
+    for _ in 0..WAITERS {
+        let (ready_tx, ready_rx) = oneshot::channel();
+        readiness.push(ready_rx);
+        waits.push(tokio::spawn(wait_after_subscribing(
+            Arc::clone(&signal),
+            f.queue.clone(),
+            Duration::from_secs(5),
+            ready_tx,
+        )));
+    }
+    for ready in readiness {
+        ready.await.expect("wait subscribed");
+    }
+    let listener_count = sqlx::query_scalar::<_, i64>(
+        "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND query LIKE 'LISTEN%koine_dispatch%'",
+    )
+    .fetch_one(&f.pool)
+    .await
+    .expect("count listener activity");
+    assert_eq!(listener_count, 1, "all waits share one listener backend");
+
+    tokio::time::timeout(
+        Duration::from_secs(1),
+        append_job(&f.store, &f.ids, &f.clock, f.queue.clone()),
+    )
+    .await
+    .expect("idle waits leave the size-one operational pool available");
+
+    tokio::time::timeout(Duration::from_secs(1), async {
+        for wait in waits {
+            wait.await.expect("wait task completed");
+        }
+    })
+    .await
+    .expect("all waiters receive the one queue notification");
+}
+
+#[tokio::test]
+async fn listener_reconnects_after_backend_termination() {
+    let f = fx().await;
+    let original_pid = listener_pid(&f.pool, None).await;
+    let started = Instant::now();
+    let terminated = sqlx::query_scalar::<_, bool>("SELECT pg_terminate_backend($1)")
+        .bind(original_pid)
+        .fetch_one(&f.pool)
+        .await
+        .expect("terminate listener backend");
+    assert!(terminated, "listener backend was terminated");
+
+    let signal = Arc::new(f.signal);
+    let (ready_tx, ready_rx) = oneshot::channel();
+    let wait = tokio::spawn(wait_after_subscribing(
+        signal,
+        f.queue.clone(),
+        Duration::from_secs(5),
+        ready_tx,
+    ));
+    ready_rx.await.expect("wait subscribed");
+
+    append_job(&f.store, &f.ids, &f.clock, f.queue.clone()).await;
+    let reconnected_pid = listener_pid(&f.pool, Some(original_pid)).await;
+    assert_ne!(reconnected_pid, original_pid);
+
+    // Notifications are transient during reconnect. A second append after
+    // LISTEN is visible proves prompt wakeup without making it correctness.
+    append_job(&f.store, &f.ids, &f.clock, f.queue.clone()).await;
+    let remaining = Duration::from_secs(2).saturating_sub(started.elapsed());
+    tokio::time::timeout(remaining, wait)
+        .await
+        .expect("wait wakes within the reconnect budget")
+        .expect("wait task completed");
+    assert!(started.elapsed() < Duration::from_secs(2));
 }
 
 #[tokio::test]

@@ -9,15 +9,15 @@ use testcontainers::ContainerAsync;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
-/// Starts Postgres and returns (container guard, migrated pool). Keep the
-/// guard alive for the test's duration or the container stops.
-pub async fn pg() -> (ContainerAsync<Postgres>, PgPool) {
+/// Starts Postgres and returns (container guard, URL, migrated pool). Keep
+/// the guard alive for the test's duration or the container stops.
+pub async fn pg() -> (ContainerAsync<Postgres>, String, PgPool) {
     let (container, url) = postgres_url().await;
-    let pool =
-        koine_store_postgres::connect_pool(&url, koine_store_postgres::PoolConfig::default())
-            .await
-            .expect("connect + migrate");
-    (container, pool)
+    let pool_config = koine_store_postgres::PoolConfig::default();
+    let pool = koine_store_postgres::connect_pool(&url, pool_config)
+        .await
+        .expect("connect + migrate");
+    (container, url, pool)
 }
 
 /// Starts Postgres and returns (container guard, connection URL). Keep the

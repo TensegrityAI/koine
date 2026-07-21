@@ -3,54 +3,83 @@
 use koine_application::ports::DispatchSignal;
 use koine_domain::QueueName;
 use sqlx::PgPool;
+use sqlx::postgres::{PgListener, PgPoolOptions};
 use std::time::Duration;
+use tokio::sync::broadcast;
+
+const NOTIFICATION_BUFFER: usize = 1_024;
+const RECONNECT_BACKOFF: Duration = Duration::from_millis(100);
 
 /// Postgres-backed dispatch signal using NOTIFY/LISTEN.
 pub struct PgSignal {
-    pool: PgPool,
+    notify_pool: PgPool,
+    notifications: broadcast::Sender<String>,
 }
 
 impl PgSignal {
-    /// Creates a new signal over the given pool.
-    #[must_use]
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    /// Connects one dedicated listener and starts its in-process fan-out hub.
+    ///
+    /// The listener uses a separate size-one pool so idle waits never consume
+    /// the operational pool used by [`Self::notify`] and the store adapters.
+    ///
+    /// # Errors
+    ///
+    /// Returns the initial listener connection or `LISTEN` error. The
+    /// subscription is established before this function returns.
+    pub async fn connect(
+        url: &str,
+        notify_pool: PgPool,
+        listener_acquire_timeout: Duration,
+    ) -> Result<Self, sqlx::Error> {
+        let listener_pool = PgPoolOptions::new()
+            .max_connections(1)
+            .acquire_timeout(listener_acquire_timeout)
+            .connect(url)
+            .await?;
+        let mut listener = PgListener::connect_with(&listener_pool).await?;
+        listener.listen("koine_dispatch").await?;
+
+        let (notifications, _) = broadcast::channel(NOTIFICATION_BUFFER);
+        let fanout = notifications.clone();
+        tokio::spawn(async move {
+            loop {
+                match listener.recv().await {
+                    Ok(notification) => {
+                        let _ = fanout.send(notification.payload().to_string());
+                    }
+                    Err(_) => tokio::time::sleep(RECONNECT_BACKOFF).await,
+                }
+            }
+        });
+
+        Ok(Self {
+            notify_pool,
+            notifications,
+        })
     }
 }
 
 impl DispatchSignal for PgSignal {
     async fn notify(&self, queue: &QueueName) {
-        let pool = self.pool.clone();
         let queue_str = queue.as_str().to_string();
         let _ = sqlx::query("SELECT pg_notify('koine_dispatch', $1)")
             .bind(queue_str)
-            .execute(&pool)
+            .execute(&self.notify_pool)
             .await;
     }
 
     async fn wait(&self, queue: &QueueName, timeout: Duration) {
-        let pool = self.pool.clone();
-        let queue_str = queue.as_str().to_string();
-        // Wrap the entire operation (connect, listen, recv loop) in the timeout budget.
-        // This ensures a slow pool acquire respects the caller's timeout.
+        let mut receiver = self.notifications.subscribe();
+        let queue_str = queue.as_str();
         let _ = tokio::time::timeout(timeout, async {
-            if let Ok(mut listener) = sqlx::postgres::PgListener::connect_with(&pool).await {
-                let _ = listener.listen("koine_dispatch").await;
-                let mut remaining = timeout;
-                loop {
-                    let start = std::time::Instant::now();
-                    match tokio::time::timeout(remaining, listener.recv()).await {
-                        Ok(Ok(notification)) => {
-                            if notification.payload() == queue_str {
-                                return;
-                            }
-                            remaining = remaining.saturating_sub(start.elapsed());
-                            if remaining.is_zero() {
-                                return;
-                            }
-                        }
-                        Ok(Err(_)) | Err(_) => return,
-                    }
+            loop {
+                match receiver.recv().await {
+                    Ok(payload) if payload == queue_str => return,
+                    Ok(_) => {}
+                    Err(
+                        broadcast::error::RecvError::Lagged(_)
+                        | broadcast::error::RecvError::Closed,
+                    ) => return,
                 }
             }
         })

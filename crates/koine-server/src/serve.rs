@@ -135,14 +135,21 @@ fn parse_non_zero_u32(
 /// # Errors
 ///
 /// Returns an error string if the environment is misconfigured (see
-/// [`parse_config`]), the database connection/migration fails, or the
-/// `gRPC` transport fails to bind or serve.
+/// [`parse_config`]), the database connection/migration or initial listener
+/// setup fails, or the `gRPC` transport fails to bind or serve.
 pub async fn run() -> Result<(), String> {
     let cfg = parse_config(|name| std::env::var(name).ok())?;
 
     let pool = connect_pool(&cfg.database_url, cfg.pool_config)
         .await
         .map_err(|e| format!("connect/migrate: {e}"))?;
+    let signal = PgSignal::connect(
+        &cfg.database_url,
+        pool.clone(),
+        cfg.pool_config.acquire_timeout(),
+    )
+    .await
+    .map_err(|e| format!("listen koine_dispatch: {e}"))?;
 
     // Sweep ticker: reclaims expired leases every 500ms so a crashed worker's
     // job becomes claimable again without a separate process (ADR 0008).
@@ -181,7 +188,6 @@ pub async fn run() -> Result<(), String> {
     let store = PostgresEventStore::new(pool.clone());
     let dispatcher =
         PostgresDispatcher::new(pool.clone(), Arc::new(UuidV7Ids), Arc::new(SystemClock));
-    let signal = PgSignal::new(pool.clone());
     let presence = PgPresence::new(pool);
     let grpc_addr = cfg.grpc_addr;
     let deps = Arc::new(Deps {

@@ -22,7 +22,9 @@ use koine_domain::{JobId, Priority, QueueName, RetryPolicy};
 use koine_grpc::{Deps, GrpcConfig};
 use koine_proto::v1;
 use koine_proto::v1::worker_service_client::WorkerServiceClient;
-use koine_store_postgres::{PgPresence, PgSignal, PostgresDispatcher, PostgresEventStore};
+use koine_store_postgres::{
+    PgPresence, PgSignal, PoolConfig, PostgresDispatcher, PostgresEventStore,
+};
 use serde_json::Value;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
@@ -120,11 +122,21 @@ async fn load_kinds(pool: &PgPool, job: JobId) -> Vec<&'static str> {
 /// `PostgresDispatcher`) plus the real `SystemClock`/`UuidV7Ids` runtime
 /// types. Returns the bound address; the server task is detached (it dies
 /// with the test process).
-async fn spawn_server(pool: PgPool, idle_poll: Duration) -> std::net::SocketAddr {
+async fn spawn_server(
+    database_url: &str,
+    pool: PgPool,
+    idle_poll: Duration,
+) -> std::net::SocketAddr {
     let store = PostgresEventStore::new(pool.clone());
     let dispatcher =
         PostgresDispatcher::new(pool.clone(), Arc::new(UuidV7Ids), Arc::new(SystemClock));
-    let signal = PgSignal::new(pool.clone());
+    let signal = PgSignal::connect(
+        database_url,
+        pool.clone(),
+        PoolConfig::default().acquire_timeout(),
+    )
+    .await
+    .expect("connect listener");
     let presence = PgPresence::new(pool);
 
     let deps = Arc::new(Deps {
@@ -201,8 +213,8 @@ async fn worker_last_seen(pool: &PgPool, worker_id: &str) -> Option<DateTime<Utc
 
 #[tokio::test]
 async fn crash_recovery_over_the_wire() {
-    let (_guard, pool) = support::pg().await;
-    let addr = spawn_server(pool.clone(), Duration::from_millis(200)).await;
+    let (_guard, database_url, pool) = support::pg().await;
+    let addr = spawn_server(&database_url, pool.clone(), Duration::from_millis(200)).await;
     let mut client = connect(addr).await;
 
     let queue = QueueName::new("default").expect("queue name");
@@ -330,8 +342,8 @@ async fn presence_rows_appear() {
     // per test" convention (see support/mod.rs) — presence rows have no
     // dependency on the crash-recovery arc, so a fresh, independent
     // fixture is simpler and less flaky than sequencing on shared state.
-    let (_guard, pool) = support::pg().await;
-    let addr = spawn_server(pool.clone(), Duration::from_millis(200)).await;
+    let (_guard, database_url, pool) = support::pg().await;
+    let addr = spawn_server(&database_url, pool.clone(), Duration::from_millis(200)).await;
     let mut client = connect(addr).await;
     let queue = QueueName::new("default").expect("queue name");
 
