@@ -10,7 +10,7 @@ crate's job is to load, append, and wrap events with lineage.
 ## How it is built
 
 - **Ports (`src/ports.rs`)** — `EventStore` (`append`, `load`), `Dispatcher`
-  (`lease_next`, `extend_lease`, `expired`), `EventSink` (`deliver`) — the
+  (`lease_next`, `extend_lease`, `retire_next_expired_lease`), `EventSink` (`deliver`) — the
   outbox consumer port (ADR 0012), fed by an adapter's relay loop, with
   `SinkError` (a failed batch) and `RelayError` (`Sink` plus adapter
   `Backend` failure) covering the failure modes — `Clock` (`now`),
@@ -25,11 +25,15 @@ crate's job is to load, append, and wrap events with lineage.
   async-fn-in-trait (`-> impl Future<Output = ...> + Send`), so calls
   dispatch statically with no boxed futures.
 - **Composite-operation contracts live in the adapter, not the use case**
-  (ADR 0006/0011): `EventStore::append` must update the dispatch index
+  (ADRs 0006, 0011, and 0016): `EventStore::append` must update the dispatch index
   atomically with the write; `Dispatcher::lease_next` must atomically pick
   the next eligible job, produce `leased` via the domain aggregate, append
-  it, and update the index. Use cases call these ports and stay ignorant of
-  how atomicity is achieved.
+  it, and update the index. `Dispatcher::retire_next_expired_lease` must
+  select and revalidate one expired live grant, derive `Job::expire_lease`
+  events, append them, and update the index in that same transaction or
+  critical section. Use cases call these ports and stay ignorant of how
+  atomicity is achieved. This strengthens only the internal port: the event
+  taxonomy and the public `koine.v1` wire contract are unchanged.
 - **`wrap_events` (`src/lineage.rs`)** — every use case builds its event(s)
   through `Job`'s command methods, then calls `wrap_events(ids, clock,
   stream, base_version, correlation_id, causation_id, traceparent, events)`
@@ -51,14 +55,12 @@ crate's job is to load, append, and wrap events with lineage.
   - `lease::LeaseNextJob` — a direct pass-through to `Dispatcher::lease_next`.
   - `heartbeat::Heartbeat` — a pass-through to `Dispatcher::extend_lease`;
     writes no event (ephemeral, ADR 0011-c).
-  - `sweep::SweepExpiredLeases` — lists `Dispatcher::expired(now)`, folds
-    each stream, emits `lease_expired` + the retry decision. Only
-    `DomainError::IllegalTransition` (a job acked between listing and
-    folding — state already moved on) and the store rejecting with
-    `EventStoreError::VersionConflict` (lost a concurrent append) are
-    skipped — the next sweep sees the truth. Any other domain error (e.g.
-    `InvalidTtl` from a pathological policy) surfaces as `SweepError::Domain`
-    instead, so a stuck lease is never silently stranded.
+  - `sweep::SweepExpiredLeases` — loops
+    `Dispatcher::retire_next_expired_lease` until it returns `None`. The
+    adapter, rather than the use case, owns candidate selection, deadline
+    revalidation, aggregate expiry/retry derivation, append, and projection
+    update. A dispatcher error surfaces as `SweepError::Dispatch`; it is
+    never reported as a partial successful retirement.
 - **Lineage plumbing** — `worker_ack`, `cancel`, and `sweep` all derive
   `(correlation_id, causation_id, traceparent)` from the loaded stream:
   correlation is carried from the stream's first envelope (set at
@@ -76,6 +78,11 @@ crate's job is to load, append, and wrap events with lineage.
   wake on new work instead of polling a drained queue.
 - ADR 0015 — `WorkerPresence` is ephemeral infrastructure state, like lease
   deadlines (ADR 0011-c): no domain event, no aggregate, no stream.
+- ADR 0016 — expiry and heartbeat serialize on the same lease state: if the
+  heartbeat wins, retirement observes its extended deadline and does not
+  expire the grant; if retirement wins, a later heartbeat returns `false`.
+  The formal recovery liveness claim is conditional on a finite heartbeat
+  bound: a worker may validly renew forever in the production protocol.
 
 ## Boundaries
 

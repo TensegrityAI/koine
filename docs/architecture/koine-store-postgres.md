@@ -8,8 +8,9 @@ The production driven adapter: `PostgresEventStore` (`EventStore`),
 (`WorkerPresence`, phase 2A), plus `rebuild_dispatch` (replay-from-zero ops
 tool) and `connect_pool` (the one entry point composition roots use —
 connects and runs the embedded `sqlx::migrate!` migrations). It is the
-durable twin of `koine-store-memory`: the same two composite contracts
-(ADR 0011), a real transaction standing in for the mutex guard.
+durable twin of `koine-store-memory`: the ADR 0011 composite contracts and
+  the ADR 0016 atomic retirement contract, with a real transaction standing
+  in for the mutex guard.
 
 ## How it is built
 
@@ -68,12 +69,18 @@ durable twin of `koine-store-memory`: the same two composite contracts
   (`Job::lease` — domain validation stays authoritative, ADR 0011-b), append
   it through the same `append_in_tx` the event store uses, commit. Concurrent
   claimers never collide: `concurrent_claims_get_distinct_jobs`.
-- **`extend_lease`/`expired` touch only `dispatch_queue`** — no event is
-  written (ADR 0011-c). `extend_lease` sets `lease_expires_at` to a fresh
-  `now + ttl` deadline (sliding window from the call, not from the previous
-  deadline — see the phase-1b execution note below) and only if the lease is
-  still live; `expired` lists jobs whose deadline has passed, feeding the
-  sweep use case.
+- **Heartbeat and retirement serialize in one lease-row transaction**
+  (`dispatcher.rs`) — `extend_lease` updates the matching, still-live
+  `dispatch_queue` row to a fresh `now + ttl` deadline. A
+  `retire_next_expired_lease` transaction selects one expired row in deadline/
+  job order with `FOR UPDATE SKIP LOCKED`, revalidates the current row, folds
+  the stream, derives `Job::expire_lease` events, appends them through the
+  transaction-local append machinery, and updates the projection before
+  commit. If heartbeat commits first, retirement sees the extended deadline
+  and skips that grant; if retirement commits first, the row no longer holds a
+  live matching lease and heartbeat returns `false`. The change is internal:
+  heartbeats remain event-free, expiry/retry events retain their taxonomy and
+  lineage, and the public `koine.v1` wire contract is unchanged.
 - **Outbox relay is claim-delete, not positions** (`relay.rs`) — `SELECT …
   ORDER BY outbox_seq LIMIT $n FOR UPDATE SKIP LOCKED`, deliver the ordered
   batch to an `EventSink`, delete on success; sink failure rolls the
@@ -110,6 +117,10 @@ durable twin of `koine-store-memory`: the same two composite contracts
 - ADR 0015 — `PgPresence`/`event_store.workers` is the durable half of
   ephemeral worker presence: no domain event, no aggregate, survives
   restarts as rows filtered by `last_seen`.
+- ADR 0016 — the retirement transaction and heartbeat update fence each
+  other on the current lease row while retaining `SKIP LOCKED` concurrency
+  for unrelated jobs. Formal recovery liveness is conditional on the model's
+  finite heartbeat allowance; production workers may renew forever.
 
 ## Boundaries
 

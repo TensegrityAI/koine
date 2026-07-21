@@ -33,11 +33,17 @@ that exercises use cases against real (if in-memory) atomicity.
   authoritative per ADR 0011), and calls `InMemoryEventStore::append_locked`
   directly — claim and append share one lock acquisition, so there is no
   window where a job is claimed but not yet recorded. `extend_lease` and
-  `expired` touch only the index's ephemeral `expires_at`; no event is
-  written for either. `extend_lease` rejects an unrepresentable TTL as
-  `DispatchError::Backend("ttl out of range")` rather than saturating —
-  the same never-silently-clamp philosophy as the lease path, and matched
-  by the Postgres twin's `extend_lease`.
+  `retire_next_expired_lease` share that same lock (ADR 0016). Retirement
+  reads time, selects and revalidates one expired grant, derives
+  `Job::expire_lease` events, appends them, and rebuilds the index before
+  releasing the lock. If heartbeat wins, retirement observes the extended
+  deadline and returns `None`; if retirement wins, a later heartbeat returns
+  `false`. Heartbeat remains event-free; retirement retains the existing
+  expiry/retry event taxonomy and leaves the public `koine.v1` wire contract
+  unchanged. `extend_lease` rejects an unrepresentable TTL as
+  `DispatchError::Backend("ttl out of range")` rather than saturating — the
+  same never-silently-clamp philosophy as the lease path, and matched by the
+  Postgres twin's `extend_lease`.
 - **Test doubles (`src/test_support.rs`)** — `FixedClock` (manually
   `advance`d) and `SeededIds` (sequential UUIDs seeding the high bits with a
   caller-chosen `seed`, and using that same `seed` as `jitter_seed()`) make
@@ -63,10 +69,12 @@ that exercises use cases against real (if in-memory) atomicity.
   `src/signal.rs` unit tests (`wait_returns_promptly_after_concurrent_notify_same_queue`,
   `wait_on_different_queue_times_out_at_timeout`,
   `noop_presence_seen_completes`). The crate-level proof is
-  `tests/lifecycle.rs`: 8 tests running full use-case flows — happy path,
+  `tests/lifecycle.rs`: 10 tests running full use-case flows — happy path,
   retryable/non-retryable failure, cancel, crash recovery via the sweep,
   late-ack-after-expiry, heartbeat keep-alive, and exhaustion into
-  `parked`.
+  `parked`. The formal model's recovery liveness claim is deliberately
+  conditional: its finite heartbeat allowance is a model bound, because a
+  worker may legitimately renew a lease forever in production.
 
 ## Why
 
@@ -78,6 +86,9 @@ that exercises use cases against real (if in-memory) atomicity.
   contracts ((a) append + index update, (b) claim + append + index update)
   under one mutex, the same shape the Postgres adapter will deliver under
   one transaction.
+- ADR 0016 — retirement is a third composite operation under that mutex,
+  fencing an accepted heartbeat without turning heartbeats into events or
+  changing the wire contract.
 - ADR 0013/0015 — `NotifySignal`/`NoopPresence` keep `DispatchSignal`/
   `WorkerPresence` adapter-neutral the same way the store/dispatcher pair
   keeps `EventStore`/`Dispatcher` honest.
