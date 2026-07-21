@@ -160,7 +160,7 @@ async fn listener_pid(pool: &sqlx::PgPool, previous_pid: Option<i32>) -> i32 {
     .expect("listener becomes visible in pg_stat_activity")
 }
 
-async fn listener_backend_exists(pool: &sqlx::PgPool, pid: i32) -> bool {
+async fn listener_subscription_exists(pool: &sqlx::PgPool, pid: i32) -> bool {
     sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid = $1 AND query LIKE 'LISTEN%koine_dispatch%')",
     )
@@ -170,9 +170,17 @@ async fn listener_backend_exists(pool: &sqlx::PgPool, pid: i32) -> bool {
     .expect("inspect listener backend")
 }
 
+async fn postgres_backend_exists(pool: &sqlx::PgPool, pid: i32) -> bool {
+    sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid = $1)")
+        .bind(pid)
+        .fetch_one(pool)
+        .await
+        .expect("inspect postgres backend")
+}
+
 async fn wait_for_listener_backend_to_disappear(pool: &sqlx::PgPool, pid: i32) {
     tokio::time::timeout(Duration::from_secs(1), async {
-        while listener_backend_exists(pool, pid).await {
+        while postgres_backend_exists(pool, pid).await {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
@@ -319,7 +327,7 @@ async fn listener_lives_until_last_signal_clone_is_dropped() {
 
     drop(signal);
     assert!(
-        listener_backend_exists(&pool, listener_pid).await,
+        listener_subscription_exists(&pool, listener_pid).await,
         "dropping an intermediate clone keeps the listener alive"
     );
     drop(remaining_signal);
