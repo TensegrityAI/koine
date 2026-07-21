@@ -2,11 +2,11 @@
 
 - **State:** ongoing
 - **Origin:** phase-2A zero-debt hardening design
-- **Epic:** ../epics/phase-2-data-plane.md
+- **Epic:** ../../epics/phase-2-data-plane.md
 
 ## Traceability
 
-- **Implements:** hardening design §§6–10; ADR-0017; operational-closure plan Tasks 1–6; closes the CI-pinning and manifest-cleanup legacy items.
+- **Implements:** [hardening design §§6–10](../../../docs/superpowers/specs/2026-07-21-koine-phase-2a-zero-debt-hardening-design.md); [ADR-0017](../../../docs/adr/0017-hermetic-protobuf-ci-artifact-pinning.md); [operational-closure plan Tasks 1–6](../../../docs/superpowers/plans/2026-07-21-koine-operational-closure.md); closes the CI-pinning and manifest-cleanup legacy items.
 
 ## Acceptance criteria
 

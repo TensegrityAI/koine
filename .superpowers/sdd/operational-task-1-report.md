@@ -26,6 +26,9 @@ field synchronized.
 - Manual self-review — passed: state, traceability, all six acceptance
   criteria, relative dependency targets, and open evidence sections match the
   brief. TDD is N/A because this is a documentation-only lifecycle opening.
+- Follow-up authority-link review — passed: the epic link resolves from
+  `backlog/ongoing/`, and the hardening design, ADR-0017, and
+  operational-closure plan links resolve from the same item.
 
 ## Concerns
 
