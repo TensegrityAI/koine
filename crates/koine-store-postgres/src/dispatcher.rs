@@ -1,12 +1,11 @@
-//! `PostgresDispatcher`: the ADR 0011-b claim composite as one SQL
-//! transaction — `SELECT … FOR UPDATE SKIP LOCKED` on the dispatch partial
-//! index, domain-validated lease, event + outbox + row update, commit.
+//! `PostgresDispatcher`: the ADR 0011-b claim and ADR 0016 lease-retirement
+//! composites as SQL transactions — row-lock selection, domain-derived
+//! events, append and synchronous projection update, then commit.
 
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
 use koine_application::lineage_of;
 use koine_application::ports::{
     Clock, DispatchError, Dispatcher, EventStoreError, IdGenerator, LeasedJob,
@@ -91,6 +90,43 @@ impl<G: IdGenerator, C: Clock> PostgresDispatcher<G, C> {
             traceparent,
         }))
     }
+
+    async fn retire_one(&self) -> Result<Option<JobId>, DispatchError> {
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let now = self.clock.now();
+        let picked: Option<(Uuid,)> = sqlx::query_as(
+            "SELECT job_id FROM event_store.dispatch_queue \
+             WHERE lease_id IS NOT NULL AND lease_expires_at <= $1 \
+             ORDER BY lease_expires_at, job_id \
+             LIMIT 1 FOR UPDATE SKIP LOCKED",
+        )
+        .bind(now)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(db)?;
+        let Some((job_uuid,)) = picked else {
+            tx.commit().await.map_err(db)?;
+            return Ok(None);
+        };
+        let job_id = JobId::new(job_uuid);
+        let stream = load_in_tx(&mut tx, job_id).await?;
+        let job = Job::from_events(&stream)?;
+        let events = job.expire_lease(now, self.ids.jitter_seed())?;
+        let (correlation_id, causation_id, traceparent) = lineage_of(&stream);
+        let envelopes = wrap_events(
+            self.ids.as_ref(),
+            self.clock.as_ref(),
+            job_id,
+            job.version,
+            correlation_id,
+            causation_id,
+            traceparent,
+            events,
+        );
+        append_in_tx(&mut tx, job_id, job.version, &envelopes).await?;
+        tx.commit().await.map_err(db)?;
+        Ok(Some(job_id))
+    }
 }
 
 impl<G: IdGenerator, C: Clock> Dispatcher for PostgresDispatcher<G, C> {
@@ -104,10 +140,11 @@ impl<G: IdGenerator, C: Clock> Dispatcher for PostgresDispatcher<G, C> {
     }
 
     async fn extend_lease(&self, lease: LeaseId, ttl: Duration) -> Result<bool, DispatchError> {
-        let now = self.clock.now();
         let Ok(delta) = chrono::TimeDelta::from_std(ttl) else {
             return Err(DispatchError::Backend("ttl out of range".into()));
         };
+        let mut tx = self.pool.begin().await.map_err(db)?;
+        let now = self.clock.now();
         let deadline = now + delta;
         let updated = sqlx::query(
             "UPDATE event_store.dispatch_queue SET lease_expires_at = $1 \
@@ -116,22 +153,16 @@ impl<G: IdGenerator, C: Clock> Dispatcher for PostgresDispatcher<G, C> {
         .bind(deadline)
         .bind(lease.as_uuid())
         .bind(now)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await
         .map_err(db)?;
+        tx.commit().await.map_err(db)?;
         Ok(updated.rows_affected() > 0)
     }
 
-    async fn expired(&self, now: DateTime<Utc>) -> Result<Vec<JobId>, DispatchError> {
-        let rows: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT job_id FROM event_store.dispatch_queue \
-             WHERE lease_id IS NOT NULL AND lease_expires_at <= $1 \
-             ORDER BY job_id",
-        )
-        .bind(now)
-        .fetch_all(&self.pool)
-        .await
-        .map_err(db)?;
-        Ok(rows.into_iter().map(|(id,)| JobId::new(id)).collect())
+    fn retire_next_expired_lease(
+        &self,
+    ) -> impl Future<Output = Result<Option<JobId>, DispatchError>> + Send {
+        self.retire_one()
     }
 }

@@ -12,9 +12,11 @@ use koine_application::wrap_events;
 use koine_domain::{Job, JobId, Priority, QueueName, RetryPolicy, WorkerId};
 use koine_store_memory::{FixedClock, SeededIds};
 use koine_store_postgres::{PostgresDispatcher, PostgresEventStore};
+use sqlx::PgPool;
 
 struct Fx {
     _guard: testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
+    pool: PgPool,
     store: PostgresEventStore,
     ids: Arc<SeededIds>,
     clock: Arc<FixedClock>,
@@ -35,6 +37,7 @@ async fn fx() -> Fx {
     ));
     Fx {
         _guard: guard,
+        pool: pool.clone(),
         store: PostgresEventStore::new(pool.clone()),
         dispatcher: PostgresDispatcher::new(pool, Arc::clone(&ids), Arc::clone(&clock)),
         ids,
@@ -129,8 +132,6 @@ async fn respects_not_before_and_lease_expiry() {
         .expect("claim")
         .expect("eligible now");
 
-    let now = f.clock.now();
-    assert!(f.dispatcher.expired(now).await.expect("expired").is_empty());
     assert!(
         f.dispatcher
             .extend_lease(claimed.lease, Duration::from_mins(1))
@@ -138,16 +139,21 @@ async fn respects_not_before_and_lease_expiry() {
             .expect("hb")
     );
     f.clock.advance(Duration::from_secs(31));
-    let now = f.clock.now();
     assert!(
-        f.dispatcher.expired(now).await.expect("expired").is_empty(),
+        f.dispatcher
+            .retire_next_expired_lease()
+            .await
+            .expect("retire")
+            .is_none(),
         "extended"
     );
     f.clock.advance(Duration::from_secs(31));
-    let now = f.clock.now();
     assert_eq!(
-        f.dispatcher.expired(now).await.expect("expired"),
-        vec![claimed.job_id]
+        f.dispatcher
+            .retire_next_expired_lease()
+            .await
+            .expect("retire"),
+        Some(claimed.job_id)
     );
     assert!(
         !f.dispatcher
@@ -155,6 +161,167 @@ async fn respects_not_before_and_lease_expiry() {
             .await
             .expect("hb"),
         "expired refuses"
+    );
+}
+
+#[tokio::test]
+async fn heartbeat_first_fences_retirement() {
+    let f = fx().await;
+    let job = enqueue(&f, 0, None).await;
+    let claimed = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("job");
+
+    f.clock.advance(Duration::from_secs(20));
+    assert!(
+        f.dispatcher
+            .extend_lease(claimed.lease, Duration::from_secs(30))
+            .await
+            .expect("heartbeat")
+    );
+    f.clock.advance(Duration::from_secs(11));
+
+    assert_eq!(
+        f.dispatcher
+            .retire_next_expired_lease()
+            .await
+            .expect("retire"),
+        None
+    );
+    assert_eq!(f.store.load(job).await.expect("load").len(), 2);
+}
+
+#[tokio::test]
+async fn retirement_first_rejects_heartbeat() {
+    let f = fx().await;
+    enqueue(&f, 0, None).await;
+    let claimed = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("job");
+
+    f.clock.advance(Duration::from_secs(31));
+    assert_eq!(
+        f.dispatcher
+            .retire_next_expired_lease()
+            .await
+            .expect("retire"),
+        Some(claimed.job_id)
+    );
+    assert!(
+        !f.dispatcher
+            .extend_lease(claimed.lease, Duration::from_secs(30))
+            .await
+            .expect("heartbeat")
+    );
+}
+
+#[tokio::test]
+async fn concurrent_retirement_records_one_expiry() {
+    let f = fx().await;
+    enqueue(&f, 0, None).await;
+    let claimed = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("job");
+    f.clock.advance(Duration::from_secs(31));
+
+    let (left, right) = tokio::join!(
+        f.dispatcher.retire_next_expired_lease(),
+        f.dispatcher.retire_next_expired_lease(),
+    );
+    let retired = [left.expect("left"), right.expect("right")]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(retired, vec![claimed.job_id]);
+    let kinds = f
+        .store
+        .load(claimed.job_id)
+        .await
+        .expect("load")
+        .into_iter()
+        .map(|e| e.event.kind())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        kinds
+            .iter()
+            .filter(|kind| **kind == "lease_expired")
+            .count(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn locked_expired_row_does_not_beat_earlier_heartbeat() {
+    let f = fx().await;
+    enqueue(&f, 0, None).await;
+    let claimed = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("claim")
+        .expect("job");
+    f.clock.advance(Duration::from_secs(20));
+
+    let mut lock = f.pool.begin().await.expect("begin lock");
+    sqlx::query("SELECT job_id FROM event_store.dispatch_queue WHERE job_id = $1 FOR UPDATE")
+        .bind(claimed.job_id.as_uuid())
+        .fetch_one(&mut *lock)
+        .await
+        .expect("lock dispatch row");
+
+    let heartbeat_dispatcher =
+        PostgresDispatcher::new(f.pool.clone(), Arc::clone(&f.ids), Arc::clone(&f.clock));
+    let heartbeat = tokio::spawn(async move {
+        heartbeat_dispatcher
+            .extend_lease(claimed.lease, Duration::from_secs(30))
+            .await
+    });
+
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            let waiting: bool = sqlx::query_scalar(
+                "SELECT EXISTS (\
+                 SELECT 1 FROM pg_stat_activity \
+                 WHERE query LIKE 'UPDATE event_store.dispatch_queue SET lease_expires_at%' \
+                   AND wait_event_type = 'Lock')",
+            )
+            .fetch_one(&f.pool)
+            .await
+            .expect("inspect blocked heartbeat");
+            if waiting {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("heartbeat reaches locked row before old deadline");
+
+    f.clock.advance(Duration::from_secs(11));
+    assert_eq!(
+        f.dispatcher
+            .retire_next_expired_lease()
+            .await
+            .expect("retire while locked"),
+        None
+    );
+    lock.commit().await.expect("release dispatch row");
+    assert!(heartbeat.await.expect("heartbeat task").expect("heartbeat"));
+    assert_eq!(
+        f.dispatcher
+            .retire_next_expired_lease()
+            .await
+            .expect("retire after heartbeat"),
+        None
     );
 }
 

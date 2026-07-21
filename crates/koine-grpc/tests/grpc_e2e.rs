@@ -85,14 +85,10 @@ async fn enqueue(pool: &PgPool, queue: &QueueName, payload: Value) -> JobId {
 /// (real `SystemClock` time, not a `FixedClock`) instead of racing a single
 /// point-in-time check.
 async fn sweep_until(pool: &PgPool, min_swept: u32, budget: Duration) -> u32 {
-    let store = PostgresEventStore::new(pool.clone());
     let dispatcher =
         PostgresDispatcher::new(pool.clone(), Arc::new(UuidV7Ids), Arc::new(SystemClock));
     let sweeper = SweepExpiredLeases {
-        store: &store,
         dispatcher: &dispatcher,
-        ids: &UuidV7Ids,
-        clock: &SystemClock,
     };
 
     let deadline = Instant::now() + budget;

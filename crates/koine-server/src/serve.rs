@@ -122,16 +122,10 @@ pub async fn run() -> Result<(), String> {
     // job becomes claimable again without a separate process (ADR 0008).
     let sweep_pool = pool.clone();
     tokio::spawn(async move {
-        let store = PostgresEventStore::new(sweep_pool.clone());
         let dispatcher =
             PostgresDispatcher::new(sweep_pool, Arc::new(UuidV7Ids), Arc::new(SystemClock));
-        let ids = UuidV7Ids;
-        let clock = SystemClock;
         let sweep = SweepExpiredLeases {
-            store: &store,
             dispatcher: &dispatcher,
-            ids: &ids,
-            clock: &clock,
         };
         let mut ticker = tokio::time::interval(TICKER_PERIOD);
         loop {

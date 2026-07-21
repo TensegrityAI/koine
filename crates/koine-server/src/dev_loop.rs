@@ -220,10 +220,7 @@ pub async fn run(database_url: &str) -> Result<(), String> {
     // 4 + 5. main loop every 300ms: sweep, relay, then poll job states until
     // all 3 are succeeded or the 60s budget runs out.
     let sweep = SweepExpiredLeases {
-        store: store.as_ref(),
         dispatcher: dispatcher.as_ref(),
-        ids: ids.as_ref(),
-        clock: clock.as_ref(),
     };
     let sink = PrintingSink;
     let tracked = [job1, job2, job3];
