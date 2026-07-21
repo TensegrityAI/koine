@@ -10,7 +10,8 @@ use koine_application::ports::{
 use koine_application::wrap_events;
 use koine_domain::{Job, Priority, QueueName, RetryPolicy, WorkerId};
 use koine_store_memory::{FixedClock, SeededIds};
-use koine_store_postgres::{PgPresence, PgSignal, PostgresEventStore};
+use koine_store_postgres::{PgPresence, PgSignal, PoolConfig, PostgresEventStore, connect_pool};
+use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,8 +36,28 @@ struct Fx {
 }
 
 async fn fx() -> Fx {
+    fx_with_pool_size(NonZeroU32::new(16).expect("non-zero pool size")).await
+}
+
+async fn fx_with_pool_size(max_connections: NonZeroU32) -> Fx {
     use chrono::TimeZone as _;
-    let (guard, pool) = support::pg().await;
+    let (guard, url) = support::postgres_url().await;
+    let pool = connect_pool(
+        &url,
+        PoolConfig::new(
+            max_connections,
+            NonZeroU64::new(5_000).expect("non-zero acquire timeout"),
+        ),
+    )
+    .await
+    .expect("connect + migrate");
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while pool.num_idle() == 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("pool exposes an idle connection to best-effort adapters");
     let ids = Arc::new(SeededIds::new(31));
     let clock = Arc::new(FixedClock::at(
         chrono::Utc
@@ -58,6 +79,21 @@ async fn fx() -> Fx {
         queue: QueueName::new("default").expect("q"),
         worker: WorkerId::new("w1").expect("w"),
     }
+}
+
+#[tokio::test]
+async fn presence_skips_when_pool_is_saturated() {
+    let f = fx_with_pool_size(NonZeroU32::new(1).expect("non-zero pool size")).await;
+    let held = f.pool.acquire().await.expect("hold only connection");
+
+    tokio::time::timeout(
+        Duration::from_millis(250),
+        f.presence.seen(&f.worker, Some(&f.queue)),
+    )
+    .await
+    .expect("best-effort presence must not wait for pool timeout");
+
+    drop(held);
 }
 
 #[tokio::test]
