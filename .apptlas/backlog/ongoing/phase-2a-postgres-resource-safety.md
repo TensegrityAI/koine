@@ -19,7 +19,7 @@
 
 ## Dependencies
 
-- Atomic lease retirement item closed.
+- [Atomic lease retirement](../done/phase-2a-atomic-lease-retirement.md) — done.
 
 ## Evidence (filled at close)
 
