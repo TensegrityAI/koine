@@ -8,6 +8,7 @@ md:
 	npm exec -- markdownlint-cli2 "**/*.md"
 
 $(TLA_TOOLS):
+	mkdir -p docs/formal/.tools
 	curl -fsSL $(TLA_TOOLS_URL) -o $(TLA_TOOLS).tmp
 	echo "$(TLA_TOOLS_SHA256)  $(TLA_TOOLS).tmp" | sha256sum -c
 	mv $(TLA_TOOLS).tmp $(TLA_TOOLS)

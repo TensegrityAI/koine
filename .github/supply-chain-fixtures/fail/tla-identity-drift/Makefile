@@ -1,6 +1,6 @@
 TLA_TOOLS := docs/formal/.tools/tla2tools.jar
-TLA_TOOLS_VERSION := 1.7.4
-TLA_TOOLS_SHA256 := 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
+TLA_TOOLS_VERSION := 1.7.5
+TLA_TOOLS_SHA256 := aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 TLA_TOOLS_URL := https://github.com/tlaplus/tlaplus/releases/download/v$(TLA_TOOLS_VERSION)/tla2tools.jar
 
 md:

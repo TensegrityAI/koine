@@ -1,7 +1,0 @@
-jobs:
-  mutation:
-    runs-on: ubuntu-24.04
-    steps:
-      - run: echo mutation
-        with:
-          node-version: "22.23.0"

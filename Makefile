@@ -44,6 +44,7 @@ machete:
 	cargo machete
 
 supply-chain:
+	npm ci --ignore-scripts
 	bash .github/scripts/check-supply-chain.sh
 	bash .github/scripts/test-supply-chain.sh
 

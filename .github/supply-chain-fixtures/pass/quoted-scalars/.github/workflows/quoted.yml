@@ -1,0 +1,4 @@
+jobs:
+  quoted:
+    runs-on: "ubuntu-24.04"
+    steps: []
