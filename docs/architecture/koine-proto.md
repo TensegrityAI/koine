@@ -29,9 +29,10 @@ worker client.
   codegen. Timestamps are `int64` unix milliseconds
   (`expires_at_unix_ms`), avoiding a `google.protobuf.Timestamp`
   dependency in every SDK.
-- **Codegen** (`build.rs`) — `tonic_prost_build::configure().build_server
-  (true).build_client(true).compile_protos(...)` against tonic 0.14.6 /
-  prost 0.14.4 (`tonic-prost` 0.14.6), generating into `OUT_DIR`.
+- **Codegen** (`build.rs`) — obtains the compiler path from the exact
+  `protoc-bin-vendored` 3.2.0 build dependency and passes it directly to
+  `tonic_prost_build::Config::protoc_executable`. The configured tonic 0.14.6 /
+  prost 0.14.4 (`tonic-prost` 0.14.6) generator emits into `OUT_DIR`.
   `src/lib.rs` re-exports the generated module as `pub mod v1` via
   `tonic::include_proto!("koine.v1")`, annotated
   `#[allow(missing_docs, clippy::pedantic, clippy::nursery)]` since it's
@@ -61,12 +62,16 @@ worker client.
 - ADR 0014 — auth rides request metadata (`authorization`,
   `koine-worker-id`), not proto fields; the contract itself carries no
   credentials.
+- ADR 0017 — protobuf generation selects the repository-pinned vendored
+  compiler rather than a compiler supplied by the host or `PROTOC`.
 
 ## Boundaries
 
 - **Zero dependency on any other Koiné crate** — the contract is
   standalone by design so any language's codegen can consume
   `proto/koine/v1/worker.proto` directly, with no Rust in the loop.
+- Rust builds require no system `protoc`; the build dependency selects the
+  vendored executable directly and does not mutate the process environment.
 - Depended on by `koine-grpc` (implements `WorkerService` against it) and
   `koine-server` (wires the generated server type into `serve`).
 - **The design spec's §2 diagram shows a bidi-stream**; this contract

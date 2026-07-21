@@ -35,5 +35,11 @@
   [the supply-chain report](../../../.superpowers/sdd/operational-task-2-report.md).
   AC1 is implemented and independently reviewable, but remains unchecked until
   the parent operational item completes all acceptance criteria and DoD gates.
+- Operational Task 3 current evidence is recorded in
+  [the hermetic protobuf report](../../../.superpowers/sdd/operational-task-3-report.md).
+  A fresh isolated target fails with the pre-change build and an invalid
+  `PROTOC`; after selecting exact `protoc-bin-vendored` 3.2.0 directly, a
+  second fresh target builds with the same poisoned environment. AC2 remains
+  unchecked until independent review and parent-item closure.
 
 ## Spec-fidelity statement (filled at close)
