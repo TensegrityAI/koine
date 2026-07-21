@@ -2,7 +2,8 @@
 (* Phase 2A: checked model of Koiné's lease/delivery protocol for ONE job.
    Mirrors koine-domain's Job state machine (job.rs transition table).
    Scope: lease identity, expiry, late acks, attempt cap, and the
-   retryable/non-retryable fail split (job.rs Job::fail()). Atomicity note:
+   retryable/non-retryable fail split (job.rs Job::fail()), explicit time,
+   lease deadlines, and bounded heartbeat renewal. Atomicity note:
    each action models one database transaction (ADR 0011/0012) — the
    SKIP LOCKED claim is atomic BY CONSTRUCTION here; the implementation's
    obligation is exactly that atomicity. Multi-job/queue ordering is out of
@@ -18,16 +19,20 @@
 
 EXTENDS Naturals, FiniteSets
 
-CONSTANTS Workers, MaxAttempts, MaxLeases, MaxConflicts
+CONSTANTS Workers, MaxAttempts, MaxLeases, MaxConflicts, MaxHeartbeats, LeaseTtl
 
 VARIABLES
     state, attempt, activeLease, issued, conflicts,
+    now, deadline, heartbeats,
     \* Ghost state (Fix round 1): records facts about past actions purely so
     \* properties can check them. No action's guard ever reads these.
-    lastAckLease, lastAckActiveLease, lastFailRetryable, lastFailParked
+    lastAckLease, lastAckActiveLease, lastFailRetryable, lastFailParked,
+    lastHeartbeatLease, lastHeartbeatDeadline, lastExpiredLease, lastExpiryNow
 
 vars == <<state, attempt, activeLease, issued, conflicts,
-           lastAckLease, lastAckActiveLease, lastFailRetryable, lastFailParked>>
+           now, deadline, heartbeats,
+           lastAckLease, lastAckActiveLease, lastFailRetryable, lastFailParked,
+           lastHeartbeatLease, lastHeartbeatDeadline, lastExpiredLease, lastExpiryNow>>
 
 States == {"pending", "leased", "running", "succeeded", "parked", "cancelled"}
 Terminal == {"succeeded", "cancelled"}
@@ -39,10 +44,17 @@ Init ==
     /\ activeLease = NoLease
     /\ issued = 0
     /\ conflicts = 0
+    /\ now = 0
+    /\ deadline = 0
+    /\ heartbeats = 0
     /\ lastAckLease = NoLease
     /\ lastAckActiveLease = NoLease
     /\ lastFailRetryable = TRUE   \* vacuous sentinel: no fail recorded yet
     /\ lastFailParked = TRUE      \* vacuous sentinel: keeps the invariant trivially true at Init
+    /\ lastHeartbeatLease = NoLease
+    /\ lastHeartbeatDeadline = 0
+    /\ lastExpiredLease = NoLease
+    /\ lastExpiryNow = 0
 
 (* A worker claims the job: one atomic tx issues a fresh lease id. *)
 Lease ==
@@ -50,15 +62,20 @@ Lease ==
     /\ issued < MaxLeases
     /\ issued' = issued + 1
     /\ activeLease' = issued + 1
+    /\ deadline' = now + LeaseTtl
     /\ state' = "leased"
-    /\ UNCHANGED <<attempt, conflicts, lastAckLease, lastAckActiveLease,
-                    lastFailRetryable, lastFailParked>>
+    /\ UNCHANGED <<attempt, conflicts, now, heartbeats, lastAckLease,
+                    lastAckActiveLease, lastFailRetryable, lastFailParked,
+                    lastHeartbeatLease, lastHeartbeatDeadline,
+                    lastExpiredLease, lastExpiryNow>>
 
 Start ==
     /\ state = "leased"
     /\ state' = "running"
-    /\ UNCHANGED <<attempt, activeLease, issued, conflicts, lastAckLease,
-                    lastAckActiveLease, lastFailRetryable, lastFailParked>>
+    /\ UNCHANGED <<attempt, activeLease, issued, conflicts, now, deadline,
+                    heartbeats, lastAckLease, lastAckActiveLease,
+                    lastFailRetryable, lastFailParked, lastHeartbeatLease,
+                    lastHeartbeatDeadline, lastExpiredLease, lastExpiryNow>>
 
 (* Ack with the CURRENT lease: normal completion. Records the fencing
    relation (the presented lease id vs. the lease that was actually active)
@@ -68,9 +85,12 @@ AckSucceed(l) ==
     /\ state = "running" /\ l = activeLease
     /\ state' = "succeeded"
     /\ activeLease' = NoLease
+    /\ deadline' = 0
     /\ lastAckLease' = l
     /\ lastAckActiveLease' = activeLease
-    /\ UNCHANGED <<attempt, issued, conflicts, lastFailRetryable, lastFailParked>>
+    /\ UNCHANGED <<attempt, issued, conflicts, now, heartbeats,
+                    lastFailRetryable, lastFailParked, lastHeartbeatLease,
+                    lastHeartbeatDeadline, lastExpiredLease, lastExpiryNow>>
 
 (* Ack failure. Mirrors job.rs's Job::fail(): attempt always increments (the
    Failed event always carries attempt+1 and is applied before the retry
@@ -89,21 +109,54 @@ AckFail(l, retryable) ==
         /\ state = "running" /\ l = activeLease
         /\ attempt' = attempt + 1
         /\ activeLease' = NoLease
+        /\ deadline' = 0
         /\ state' = nextState
         /\ lastAckLease' = l
         /\ lastAckActiveLease' = activeLease
         /\ lastFailRetryable' = retryable
         /\ lastFailParked' = (nextState = "parked")
-        /\ UNCHANGED <<issued, conflicts>>
+        /\ UNCHANGED <<issued, conflicts, now, heartbeats,
+                        lastHeartbeatLease, lastHeartbeatDeadline,
+                        lastExpiredLease, lastExpiryNow>>
+
+(* Time advances only while a live lease remains before its deadline. *)
+Tick ==
+    /\ state \in {"leased", "running"}
+    /\ now < deadline
+    /\ now' = now + 1
+    /\ UNCHANGED <<state, attempt, activeLease, issued, conflicts, deadline,
+                    heartbeats, lastAckLease, lastAckActiveLease,
+                    lastFailRetryable, lastFailParked, lastHeartbeatLease,
+                    lastHeartbeatDeadline, lastExpiredLease, lastExpiryNow>>
+
+(* A heartbeat extends the current live lease from the current model time.
+   The finite MaxHeartbeats bound models an environment where renewal
+   eventually stops; it is what makes eventual settlement meaningful. *)
+Heartbeat ==
+    /\ state \in {"leased", "running"}
+    /\ now < deadline
+    /\ heartbeats < MaxHeartbeats
+    /\ deadline' = now + LeaseTtl
+    /\ heartbeats' = heartbeats + 1
+    /\ lastHeartbeatLease' = activeLease
+    /\ lastHeartbeatDeadline' = now + LeaseTtl
+    /\ UNCHANGED <<state, attempt, activeLease, issued, conflicts, now,
+                    lastAckLease, lastAckActiveLease, lastFailRetryable,
+                    lastFailParked, lastExpiredLease, lastExpiryNow>>
 
 (* Sweep: the lease deadline passed. *)
 Expire ==
     /\ state \in {"leased", "running"}
+    /\ now >= deadline
     /\ attempt' = attempt + 1
     /\ activeLease' = NoLease
+    /\ deadline' = 0
     /\ state' = IF attempt + 1 >= MaxAttempts THEN "parked" ELSE "pending"
-    /\ UNCHANGED <<issued, conflicts, lastAckLease, lastAckActiveLease,
-                    lastFailRetryable, lastFailParked>>
+    /\ lastExpiredLease' = activeLease
+    /\ lastExpiryNow' = now
+    /\ UNCHANGED <<issued, conflicts, now, heartbeats, lastAckLease,
+                    lastAckActiveLease, lastFailRetryable, lastFailParked,
+                    lastHeartbeatLease, lastHeartbeatDeadline>>
 
 (* A STALE ack (lease no longer active): recorded as a conflict event,
    lifecycle state untouched — spec §3 "information is never lost". Not a
@@ -112,22 +165,29 @@ Expire ==
 LateAck(l) ==
     /\ l # activeLease /\ l >= 1 /\ l <= issued
     /\ conflicts' = conflicts + 1
-    /\ UNCHANGED <<state, attempt, activeLease, issued, lastAckLease,
-                    lastAckActiveLease, lastFailRetryable, lastFailParked>>
+    /\ UNCHANGED <<state, attempt, activeLease, issued, now, deadline,
+                    heartbeats, lastAckLease, lastAckActiveLease,
+                    lastFailRetryable, lastFailParked, lastHeartbeatLease,
+                    lastHeartbeatDeadline, lastExpiredLease, lastExpiryNow>>
 
 Cancel ==
     /\ state \in {"pending", "leased", "running", "parked"}
     /\ state' = "cancelled"
     /\ activeLease' = NoLease
-    /\ UNCHANGED <<attempt, issued, conflicts, lastAckLease, lastAckActiveLease,
-                    lastFailRetryable, lastFailParked>>
+    /\ deadline' = 0
+    /\ UNCHANGED <<attempt, issued, conflicts, now, heartbeats, lastAckLease,
+                    lastAckActiveLease, lastFailRetryable, lastFailParked,
+                    lastHeartbeatLease, lastHeartbeatDeadline,
+                    lastExpiredLease, lastExpiryNow>>
 
 Next ==
-    \/ Lease \/ Start \/ Expire \/ Cancel
+    \/ Lease \/ Start \/ Heartbeat \/ Tick \/ Expire \/ Cancel
     \/ \E l \in 1..MaxLeases : AckSucceed(l) \/ LateAck(l)
     \/ \E l \in 1..MaxLeases : \E retryable \in BOOLEAN : AckFail(l, retryable)
 
-Spec == Init /\ [][Next]_vars /\ WF_vars(Lease) /\ WF_vars(Expire)
+Spec == Init /\ [][Next]_vars
+        /\ WF_vars(Lease) /\ WF_vars(Heartbeat)
+        /\ WF_vars(Tick) /\ WF_vars(Expire)
 
 ----
 (* PROPERTIES *)
@@ -138,10 +198,19 @@ TypeOK ==
     /\ activeLease \in 0..MaxLeases
     /\ issued \in 0..MaxLeases
     /\ conflicts \in Nat
+    /\ now \in Nat
+    /\ deadline \in Nat
+    /\ heartbeats \in 0..MaxHeartbeats
+    /\ now <= (issued + heartbeats) * LeaseTtl
+    /\ deadline <= (issued + heartbeats) * LeaseTtl
     /\ lastAckLease \in 0..MaxLeases
     /\ lastAckActiveLease \in 0..MaxLeases
     /\ lastFailRetryable \in BOOLEAN
     /\ lastFailParked \in BOOLEAN
+    /\ lastHeartbeatLease \in 0..MaxLeases
+    /\ lastHeartbeatDeadline \in Nat
+    /\ lastExpiredLease \in 0..MaxLeases
+    /\ lastExpiryNow \in Nat
 
 (* At most one live lease ever exists — by construction each Lease retires
    the notion of eligibility until Expire/AckFail return the job to pending,
@@ -181,8 +250,17 @@ NoLeaseWhenIdle == (state \notin {"leased", "running"}) => activeLease = NoLease
    with lastFailParked=FALSE, and this invariant fails. *)
 NonRetryableAlwaysParks == lastFailRetryable \/ lastFailParked
 
-(* Liveness (under fairness of Lease and Expire): the job always reaches a
-   terminal state or parks — no livelock where it pends forever. *)
+(* An expiry of the same grant last renewed by heartbeat can occur only at
+   or after the accepted heartbeat's deadline. Different grants do not
+   constrain one another. *)
+HeartbeatExpiryFence ==
+    lastExpiredLease = NoLease
+    \/ lastExpiredLease # lastHeartbeatLease
+    \/ lastExpiryNow >= lastHeartbeatDeadline
+
+(* Liveness is conditional on the finite MaxHeartbeats environment bound:
+   once bounded renewal stops, weak fairness advances time and expires a
+   non-terminal lease, so the job eventually settles. *)
 EventuallySettled == <>[](state \in Terminal \cup {"parked"})
 
 (* State-space bound (deviation from the phase-2a task brief's verbatim

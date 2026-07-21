@@ -3,13 +3,14 @@
 `lease_protocol.tla` is a TLC-checked model of Koiné's lease/delivery
 protocol for **one job**. It mirrors `koine-domain`'s `Job` state machine
 (`crates/koine-domain/src/job.rs` transition table): lease identity, expiry,
-late acks, the attempt cap, and the retryable/non-retryable fail split.
+heartbeat renewal, explicit time/deadlines, late acks, the attempt cap, and the
+retryable/non-retryable fail split.
 Multi-job/queue ordering is out of scope — that's covered by the
 ring-3/ring-4 tests, not this model.
 
 ## Checked properties
 
-TLC (`docs/formal/lease_protocol.cfg`) checks seven invariants and one
+TLC (`docs/formal/lease_protocol.cfg`) checks eight invariants and one
 liveness property over every reachable state:
 
 - `TypeOK` — every variable stays within its declared type/range.
@@ -30,11 +31,31 @@ liveness property over every reachable state:
   immediately, regardless of attempt count (see "Retryable vs.
   non-retryable fails" below), checked via ghost state recorded at the
   moment `AckFail` decides the next state.
-- `EventuallySettled` (liveness, under fairness of `Lease` and `Expire`) —
-  the job always reaches a terminal state (`succeeded`/`cancelled`) or
-  parks; it never pends forever.
+- `HeartbeatExpiryFence` — when expiry retires the lease grant most recently
+  extended by a heartbeat, its observed time is at or after that heartbeat's
+  accepted deadline. A stale expiry decision cannot revoke an accepted
+  renewal.
+- `EventuallySettled` (liveness, under weak fairness of `Lease`, `Heartbeat`,
+  `Tick`, and `Expire`) — once the finite heartbeat allowance is exhausted or
+  unused, time advances and the job reaches a terminal state
+  (`succeeded`/`cancelled`) or parks; it never pends forever.
 
-## Ghost variables (fix round 1)
+## Time, deadlines, and bounded renewal
+
+`Lease` assigns `deadline = now + LeaseTtl`. `Tick` advances `now` while a
+live lease is before its deadline, `Heartbeat` extends that current live lease
+from `now`, and `Expire` is enabled only when `now >= deadline`. Every action
+that ends a live lease resets `deadline` to zero.
+
+`MaxHeartbeats = 2` and `LeaseTtl = 2` are model-checking bounds, not product
+limits. The finite heartbeat count is also the explicit environment assumption
+behind `EventuallySettled`: a worker may legitimately keep a lease forever in
+the real protocol by renewing forever, so unconditional settlement would be a
+false guarantee. With renewal bounded, weak fairness for `Heartbeat`, `Tick`,
+and `Expire` explores renewal/time/retirement interleavings and ensures that
+time cannot remain frozen before expiry.
+
+## Ghost variables
 
 The first four invariants above are checkable straight from `state`,
 `attempt`, `activeLease`, and `issued`. `LeaseFencingOK` and
@@ -42,7 +63,8 @@ The first four invariants above are checkable straight from `state`,
 moment of a transition* (did the presented lease match the active one? did
 a non-retryable failure actually park?), and a plain safety invariant over
 the post-transition state can't see that relationship once the transition
-has happened. The model adds four ghost variables to make both checkable:
+has happened. The model adds ghost variables to make these relationships
+checkable:
 
 - `lastAckLease`, `lastAckActiveLease` — on every `AckSucceed(l)` or
   `AckFail(l, retryable)`, record the presented lease id `l` and the
@@ -57,11 +79,16 @@ has happened. The model adds four ghost variables to make both checkable:
   non-retryable, it parked. Both are initialized to `TRUE` (a vacuous
   sentinel meaning "no failure recorded yet"), so the invariant is
   trivially satisfied before the first `AckFail`.
+- `lastHeartbeatLease`, `lastHeartbeatDeadline` — record the grant and the
+  deadline accepted by the latest `Heartbeat`.
+- `lastExpiredLease`, `lastExpiryNow` — record the grant and model time of the
+  latest `Expire`. `HeartbeatExpiryFence` compares these observations without
+  making them inputs to an action guard.
 
-All four are bounded (finite domains: `0..MaxLeases` or `BOOLEAN`) so they
-don't affect TLC's termination, and no action's guard ever reads them —
-they exist purely so properties can observe facts about past transitions
-that the plain state variables don't retain.
+The lease/boolean observations are bounded and the time observations inherit
+the finite lease/heartbeat bounds, so they do not affect TLC's termination.
+No action's guard reads them; they exist purely so properties can observe
+facts about past transitions that the plain state variables do not retain.
 
 ## Retryable vs. non-retryable fails
 
@@ -103,6 +130,11 @@ Expected output ends with:
 Model checking completed. No error has been found.
 ```
 
+With the checked configuration (`MaxLeases = 5`, `MaxHeartbeats = 2`,
+`LeaseTtl = 2`, and the existing attempt/conflict bounds), TLC generates
+74,079 states, finds 18,598 distinct states, leaves zero states queued, and
+reaches graph depth 24.
+
 `make tla` is a separate gate from `make ci` (TLC needs a JVM, which the
 plain Rust CI jobs don't otherwise pull in). CI runs it as its own job,
 `tla`, in `.github/workflows/ci.yml` (after `markdownlint`), using
@@ -116,6 +148,12 @@ the unused constant). States in scope: `pending`, `leased`, `running`,
 `succeeded`, `parked`, `cancelled` — the phase-5-reserved `suspended` /
 `awaiting_approval` states and the operator-triggered `repaired` transition
 are not modeled here; they aren't part of the lease protocol proper.
+
+Heartbeat identity is represented by the active lease grant. `Heartbeat` is
+enabled only while that grant is live and unexpired; expiry clears it, so a
+retirement-first serialization makes a later heartbeat unavailable, while a
+heartbeat-first serialization moves the current deadline and fences expiry
+until that deadline.
 
 ## Deviations from a naive transcription of the transition table
 
@@ -146,9 +184,9 @@ TLC also warns, generically, that declaring a state constraint during
 liveness checking can be unsound in general (constraints can prune paths a
 liveness property depends on). It doesn't apply here: `conflicts` is
 disjoint from every guard on `Lease`/`Start`/`AckSucceed`/`AckFail`/
-`Expire`/`Cancel`, so bounding it cannot remove a path relevant to whether
-the job's lifecycle state eventually settles — confirmed by the
-bound-invariance check above.
+`Expire`/`Heartbeat`/`Tick`/`Cancel`, so bounding it cannot remove a path
+relevant to whether the job's lifecycle state eventually settles — confirmed
+by the bound-invariance check above.
 
 ## Mutation-probe evidence (fix round 1)
 
@@ -175,6 +213,17 @@ specifically to close that gap, and both are probe-verified:
 All three are one-line, revertible edits to `lease_protocol.tla`, applied
 and reverted for this check — the fixed module in this repo does not
 contain them.
+
+## Heartbeat-expiry mutation probe
+
+Before fencing `Expire` on the current deadline, the action was deliberately
+given the stale/early guard `now >= deadline - LeaseTtl`. `make tla` then
+reported `Invariant HeartbeatExpiryFence is violated` at graph depth 4 along
+the shortest trace `Init -> Lease -> Heartbeat -> Expire`: lease `1` was
+renewed through model time `2` and then incorrectly retired at model time `0`.
+The guard was replaced with `now >= deadline`; under the same constants,
+invariants, fairness, liveness property, and bounds, TLC completed with no
+error and the state counts recorded above.
 
 ## Drift rule
 
