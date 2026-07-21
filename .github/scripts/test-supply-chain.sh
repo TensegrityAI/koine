@@ -73,7 +73,7 @@ expect_fail action_without_comment fail/action-no-comment "approved release comm
 expect_fail action_bad_comment fail/action-bad-comment "approved release comment"
 expect_fail quoted_action_tag fail/quoted-action-tag "floating or unapproved GitHub Action"
 expect_fail flow_action_tag fail/flow-action-tag "floating or unapproved GitHub Action"
-expect_fail second_inline_uses fail/second-inline-uses "unsupported action syntax"
+expect_fail second_inline_uses fail/second-inline-uses "floating or unapproved GitHub Action"
 expect_fail ignored_workflow fail/ignored-workflow "hosted runner drift"
 expect_fail wrong_job_setup_node fail/wrong-job-setup-node "setup-node is approved only in the markdownlint job"
 expect_fail npx_long_option fail/npx-long-option "unapproved npm command"
@@ -104,6 +104,26 @@ expect_fail invalid_json fail/invalid-json "JSON parse failed"
 expect_fail lock_integrity_drift fail/lock-integrity "invalid package-lock integrity"
 expect_fail lock_registry_drift fail/lock-registry "invalid package-lock registry source"
 expect_fail lock_install_script fail/lock-script "package-lock contains install scripts"
+expect_fail cargo_install_missing_locked fail/cargo-install-missing-locked "unapproved cargo install"
+expect_fail cargo_install_wrapper fail/cargo-install-wrapper "unapproved cargo install"
+expect_fail setup_java_latest fail/setup-java-latest "Java version drift"
+expect_fail shell_indirection fail/shell-indirection "shell command indirection is forbidden"
+expect_fail repository_script_download fail/repository-script "unapproved executable download"
+expect_fail duplicate_tla_target fail/duplicate-tla-target "duplicate Makefile target: tla"
+
+fixture_root
+shell_scanner_root=$fixture_path
+mkdir -p "$shell_scanner_root/scripts"
+ln -s ../Makefile "$shell_scanner_root/scripts/symlink.sh"
+if "$gate" --root "$shell_scanner_root" >"$shell_scanner_root/output" 2>&1; then
+  echo "FAIL shell_scanner_error: gate accepted a shell-script scanner failure" >&2
+  exit 1
+fi
+if ! grep -Fq "filesystem scan failed: symlink is unsupported" "$shell_scanner_root/output"; then
+  echo "FAIL shell_scanner_error: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS shell_scanner_error"
 
 fixture_root
 filesystem_root=$fixture_path

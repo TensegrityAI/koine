@@ -13,7 +13,9 @@ const APPROVED_ACTIONS = new Map([
   ["actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444", "v5.0.0"],
 ]);
 const CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1";
+const SETUP_JAVA = "actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95";
 const SETUP_NODE = "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444";
+const CARGO_MACHETE_INSTALL = "cargo install cargo-machete --version 0.9.2 --locked";
 const MARKDOWN_COMMAND = 'npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"';
 const GITLEAKS_CHECKSUM_LINE = 'echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  gitleaks.tgz" | sha256sum -c';
 const GITLEAKS_EXACT_COMMAND = [
@@ -66,7 +68,7 @@ async function readText(file) {
   }
 }
 
-async function enumerateFiles(directory, predicate) {
+async function enumerateFiles(directory, predicate, skip = () => false) {
   const files = [];
   async function visit(current) {
     let entries;
@@ -78,6 +80,7 @@ async function enumerateFiles(directory, predicate) {
     entries.sort((left, right) => left.name.localeCompare(right.name));
     for (const entry of entries) {
       const candidate = path.join(current, entry.name);
+      if (skip(candidate, entry)) continue;
       if (entry.isSymbolicLink()) fail(`filesystem scan failed: symlink is unsupported: ${candidate}`);
       if (entry.isDirectory()) await visit(candidate);
       else if (entry.isFile() && predicate(candidate)) files.push(candidate);
@@ -213,6 +216,26 @@ function containsCommand(source, command) {
   return expression.test(executableShellText(source));
 }
 
+function containsCargoInstall(source) {
+  const expression = /(^|[\s;&|($])(?:\/?[A-Za-z0-9._-]+\/)*cargo\s+install(?=\s|$)/mu;
+  return expression.test(executableShellText(source));
+}
+
+function containsShellIndirection(source) {
+  const wrapper = "(?:(?:/(?:usr/)?bin/)?(?:env|command)\\s+)*";
+  const shell = "(?:(?:/(?:usr/)?bin/)?(?:(?:ba|da|k|z)?sh|fish)|\\$\\{?SHELL\\}?)";
+  const option = "(?:-[A-Za-z]*c[A-Za-z]*|--command)";
+  const expression = new RegExp(`(^|[\\s;&|($])${wrapper}${shell}\\s+${option}(?=\\s|$)`, "mu");
+  return expression.test(executableShellText(source));
+}
+
+function validateShellCommands(command, location) {
+  if (containsShellIndirection(command)) fail(`shell command indirection is forbidden: ${location}`);
+  if (containsCargoInstall(command) && command !== CARGO_MACHETE_INSTALL) {
+    fail(`unapproved cargo install: ${location}: ${command}`);
+  }
+}
+
 function validateNpmCommand(command, location, allowed) {
   if (!containsCommand(command, "npm") && !containsCommand(command, "npx")) return;
   if (!allowed.includes(command)) fail(`unapproved npm command: ${location}: ${command}`);
@@ -224,6 +247,14 @@ function validateSetupNodeStep(step, location) {
   exactKeys(step.with, ["node-version", "package-manager-cache"], `${location}.with`);
   if (step.with["node-version"] !== "22.23.1") fail(`Node version drift: ${location}`);
   if (step.with["package-manager-cache"] !== false) fail(`${location} package-manager-cache must be false`);
+}
+
+function validateSetupJavaStep(step, location) {
+  if (step.uses !== SETUP_JAVA) fail(`${location} must use the approved setup-java action`);
+  exactKeys(step, ["uses", "with"], location);
+  exactKeys(step.with, ["distribution", "java-version"], `${location}.with`);
+  if (step.with.distribution !== "temurin") fail(`Java distribution drift: ${location}`);
+  if (step.with["java-version"] !== "21.0.11+10") fail(`Java version drift: ${location}`);
 }
 
 function validateWorkflow(document, text, relative, state) {
@@ -256,9 +287,13 @@ function validateWorkflow(document, text, relative, state) {
         if (step.uses === SETUP_NODE && !(relative === ".github/workflows/ci.yml" && ["markdownlint", "supply-chain"].includes(jobName))) {
           fail(`setup-node is approved only in the markdownlint job and supply-chain job: ${stepLocation}`);
         }
+        if (step.uses === SETUP_JAVA && !(relative === ".github/workflows/ci.yml" && jobName === "tla")) {
+          fail(`setup-java is approved only in the tla job: ${stepLocation}`);
+        }
       }
       if (step.run !== undefined) {
         if (typeof step.run !== "string") fail(`workflow run must be a string: ${stepLocation}`);
+        validateShellCommands(step.run, stepLocation);
         if (containsCommand(step.run, "curl") || containsCommand(step.run, "wget")) {
           if (!(relative === ".github/workflows/ci.yml" && jobName === "gitleaks" && step.run.trimEnd() === GITLEAKS_EXACT_COMMAND)) {
             fail(`unapproved executable download: ${stepLocation}`);
@@ -287,6 +322,12 @@ function validateWorkflow(document, text, relative, state) {
     fail("supply-chain job association/order drifted");
   }
 
+  const tla = document.jobs.tla;
+  if (!tla || tla.steps.length !== 3) fail("tla job must have exactly three approved steps");
+  if (tla.steps[0].uses !== CHECKOUT) fail("tla job must checkout first");
+  validateSetupJavaStep(tla.steps[1], "tla setup-java step");
+  if (tla.steps[2].run !== "make tla") fail("tla setup-java association/order drifted");
+
   const gitleaks = document.jobs.gitleaks;
   if (!gitleaks) fail("gitleaks job missing");
   const gitleaksStep = gitleaks.steps.find((step) => step.run !== undefined);
@@ -295,9 +336,17 @@ function validateWorkflow(document, text, relative, state) {
   state.ciSeen = true;
 }
 
-function targetRecipes(lines, target) {
-  const index = lines.findIndex((line) => line === target);
-  if (index < 0) fail(`Makefile target missing: ${target}`);
+function makeTargetNames(line) {
+  const match = line.match(/^([^#\s][^:]*):(?:\s|$)/u);
+  return match ? match[1].trim().split(/\s+/u) : [];
+}
+
+function targetRecipes(lines, target, targetName) {
+  const matches = lines.flatMap((line, index) => makeTargetNames(line).includes(targetName) ? [index] : []);
+  if (matches.length === 0) fail(`Makefile target missing: ${targetName}`);
+  if (matches.length > 1) fail(`duplicate Makefile target: ${targetName}`);
+  const [index] = matches;
+  if (lines[index] !== target) fail(`Makefile target signature drifted: ${targetName}`);
   const recipes = [];
   for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
     const line = lines[cursor];
@@ -326,7 +375,7 @@ function validateMakefile(text) {
   for (const [name, value] of expected) {
     if (variables.get(name) !== value) fail(`${name} must equal ${value}`);
   }
-  const downloadRecipes = targetRecipes(lines, "$(TLA_TOOLS):");
+  const downloadRecipes = targetRecipes(lines, "$(TLA_TOOLS):", "$(TLA_TOOLS)");
   const expectedDownload = [
     "mkdir -p docs/formal/.tools",
     "curl -fsSL $(TLA_TOOLS_URL) -o $(TLA_TOOLS).tmp",
@@ -334,16 +383,16 @@ function validateMakefile(text) {
     "mv $(TLA_TOOLS).tmp $(TLA_TOOLS)",
   ];
   if (JSON.stringify(downloadRecipes) !== JSON.stringify(expectedDownload)) fail("TLA+ download identity/checksum sequence drifted");
-  const tlaRecipes = targetRecipes(lines, "tla: $(TLA_TOOLS)");
+  const tlaRecipes = targetRecipes(lines, "tla: $(TLA_TOOLS)", "tla");
   const expectedTla = [
     'echo "$(TLA_TOOLS_SHA256)  $(TLA_TOOLS)" | sha256sum -c',
     "cd docs/formal && java -XX:+UseParallelGC -jar .tools/tla2tools.jar -config lease_protocol.cfg lease_protocol.tla",
   ];
   if (JSON.stringify(tlaRecipes) !== JSON.stringify(expectedTla)) fail("TLA+ execution must verify the exact checksum immediately before java execution");
 
-  const mdRecipes = targetRecipes(lines, "md:");
+  const mdRecipes = targetRecipes(lines, "md:", "md");
   if (JSON.stringify(mdRecipes) !== JSON.stringify(["npm ci --ignore-scripts", MARKDOWN_COMMAND])) fail("Makefile md npm commands drifted");
-  const supplyRecipes = targetRecipes(lines, "supply-chain:");
+  const supplyRecipes = targetRecipes(lines, "supply-chain:", "supply-chain");
   const expectedSupply = [
     "npm ci --ignore-scripts",
     "bash .github/scripts/check-supply-chain.sh",
@@ -354,6 +403,7 @@ function validateMakefile(text) {
   for (const [index, rawLine] of lines.entries()) {
     const line = rawLine.trim();
     if (!line) continue;
+    validateShellCommands(line, `Makefile:${index + 1}`);
     if (containsCommand(line, "curl") || containsCommand(line, "wget")) {
       if (line !== expectedDownload[1]) fail(`unapproved executable download: Makefile:${index + 1}`);
     }
@@ -398,14 +448,18 @@ function validatePackage(packageData, lockData) {
 }
 
 async function validateShellScripts(root) {
-  const directory = path.join(root, ".github", "scripts");
-  const scripts = await enumerateFiles(directory, (file) => file.endsWith(".sh"));
+  const ignoredDirectoryNames = new Set([".git", ".worktrees", "target", "node_modules", ".superpowers"]);
+  const fixtures = path.join(root, ".github", "supply-chain-fixtures");
+  const skip = (candidate, entry) => entry.isDirectory()
+    && (ignoredDirectoryNames.has(entry.name) || candidate === fixtures);
+  const scripts = await enumerateFiles(root, (file) => /\.(?:bash|sh|zsh)$/u.test(file), skip);
   for (const file of scripts) {
     const text = await readText(file);
-    const relative = path.relative(root, file);
+    const relative = path.relative(root, file).split(path.sep).join("/");
     for (const [index, rawLine] of text.split(/\r?\n/u).entries()) {
       const line = rawLine.trim();
       if (!line) continue;
+      validateShellCommands(line, `${relative}:${index + 1}`);
       if (containsCommand(line, "curl") || containsCommand(line, "wget")) fail(`unapproved executable download: ${relative}:${index + 1}`);
       validateNpmCommand(line, `${relative}:${index + 1}`, []);
     }
