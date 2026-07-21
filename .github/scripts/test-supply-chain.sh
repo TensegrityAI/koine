@@ -90,6 +90,12 @@ expect_fail setup_node_drift fail/setup-node "floating or unapproved GitHub Acti
 expect_fail node_version_drift fail/node-version "Node version drift"
 expect_fail image_tag_drift fail/image-tag "Postgres image identity drifted"
 expect_fail image_digest_drift fail/image-digest "Postgres image identity drifted"
+expect_fail store_postgres_tag_only fail/store-postgres-tag "testcontainers Postgres image identity drifted"
+expect_fail grpc_postgres_tag_only fail/grpc-postgres-tag "testcontainers Postgres image identity drifted"
+expect_fail store_postgres_digest_drift fail/store-postgres-digest "testcontainers Postgres image identity drifted"
+expect_fail grpc_postgres_digest_drift fail/grpc-postgres-digest "testcontainers Postgres image identity drifted"
+expect_fail postgres_pin_missing fail/postgres-pin-missing "testcontainers Postgres pin count drifted"
+expect_fail postgres_pin_duplicate fail/postgres-pin-duplicate "testcontainers Postgres pin count drifted"
 expect_fail image_without_digest fail/image-no-digest "container image must use a sha256 digest"
 expect_fail multiple_inline_images fail/multiple-images "container image must use a sha256 digest"
 expect_fail multiple_inline_runners fail/multiple-runs-on "hosted runner drift"
@@ -148,7 +154,7 @@ echo "PASS filesystem_error"
 
 fixture_root
 missing_legal_root=$fixture_path
-unlink "$missing_legal_root/crates/fixture/NOTICE"
+unlink "$missing_legal_root/crates/koine-cli/NOTICE"
 if "$gate" --root "$missing_legal_root" >"$missing_legal_root/output" 2>&1; then
   echo "FAIL missing_legal_file: gate accepted a missing crate NOTICE" >&2
   exit 1
@@ -161,8 +167,8 @@ echo "PASS missing_legal_file"
 
 fixture_root
 symlink_legal_root=$fixture_path
-unlink "$symlink_legal_root/crates/fixture/NOTICE"
-ln -s ../../NOTICE "$symlink_legal_root/crates/fixture/NOTICE"
+unlink "$symlink_legal_root/crates/koine-cli/NOTICE"
+ln -s ../../NOTICE "$symlink_legal_root/crates/koine-cli/NOTICE"
 if "$gate" --root "$symlink_legal_root" >"$symlink_legal_root/output" 2>&1; then
   echo "FAIL symlink_legal_file: gate accepted a symlinked crate NOTICE" >&2
   exit 1
@@ -172,6 +178,59 @@ if ! grep -Fq "not a regular file" "$symlink_legal_root/output"; then
   exit 1
 fi
 echo "PASS symlink_legal_file"
+
+fixture_root
+symlink_crate_root=$fixture_path
+mv "$symlink_crate_root/crates/koine-cli" "$symlink_crate_root/koine-cli-real"
+ln -s ../koine-cli-real "$symlink_crate_root/crates/koine-cli"
+if "$gate" --root "$symlink_crate_root" >"$symlink_crate_root/output" 2>&1; then
+  echo "FAIL symlink_crate_directory: gate accepted a symlinked crate directory" >&2
+  exit 1
+fi
+if ! grep -Fq "workspace crate entry must be a real directory" "$symlink_crate_root/output"; then
+  echo "FAIL symlink_crate_directory: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS symlink_crate_directory"
+
+fixture_root
+non_directory_crate_root=$fixture_path
+touch "$non_directory_crate_root/crates/unexpected-file"
+if "$gate" --root "$non_directory_crate_root" >"$non_directory_crate_root/output" 2>&1; then
+  echo "FAIL non_directory_crate_entry: gate accepted a non-directory crate entry" >&2
+  exit 1
+fi
+if ! grep -Fq "workspace crate entry must be a real directory" "$non_directory_crate_root/output"; then
+  echo "FAIL non_directory_crate_entry: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS non_directory_crate_entry"
+
+fixture_root
+missing_crate_root=$fixture_path
+mv "$missing_crate_root/crates/koine-cli" "$missing_crate_root/koine-cli-missing"
+if "$gate" --root "$missing_crate_root" >"$missing_crate_root/output" 2>&1; then
+  echo "FAIL missing_crate_directory: gate accepted a missing workspace crate" >&2
+  exit 1
+fi
+if ! grep -Fq "workspace crate directory set drifted" "$missing_crate_root/output"; then
+  echo "FAIL missing_crate_directory: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS missing_crate_directory"
+
+fixture_root
+extra_crate_root=$fixture_path
+mkdir "$extra_crate_root/crates/koine-extra"
+if "$gate" --root "$extra_crate_root" >"$extra_crate_root/output" 2>&1; then
+  echo "FAIL extra_crate_directory: gate accepted an extra workspace crate" >&2
+  exit 1
+fi
+if ! grep -Fq "workspace crate directory set drifted" "$extra_crate_root/output"; then
+  echo "FAIL extra_crate_directory: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS extra_crate_directory"
 
 fixture_root
 missing_node_root=$fixture_path

@@ -30,6 +30,24 @@ const TLA_URL = "https://github.com/tlaplus/tlaplus/releases/download/v$(TLA_TOO
 const JS_YAML_INTEGRITY = "sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==";
 const MARKDOWNLINT_INTEGRITY = "sha512-20JPI5W+HpV1OA+pUM712wgvL4GzYNUvbmhLU8KlEYJ1kCDx4soZ4/Xqd+WkLrPTOKMAn8SfO3zYFrK8GLlwQg==";
 const POSTGRES_IMAGE = "postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d";
+const POSTGRES_TESTCONTAINERS_TAG = "17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d";
+const POSTGRES_TESTCONTAINERS_HELPERS = [
+  "crates/koine-store-postgres/tests/support/mod.rs",
+  "crates/koine-grpc/tests/support/mod.rs",
+];
+const WORKSPACE_CRATES = [
+  "koine-application",
+  "koine-cli",
+  "koine-domain",
+  "koine-grpc",
+  "koine-http",
+  "koine-mcp",
+  "koine-observability",
+  "koine-proto",
+  "koine-server",
+  "koine-store-memory",
+  "koine-store-postgres",
+];
 
 function fail(message) {
   throw new Error(message);
@@ -82,9 +100,16 @@ async function validateCrateLegalFiles(root) {
     fail(`filesystem scan failed for ${cratesRoot}: ${error.message}`);
   }
   entries.sort((left, right) => left.name.localeCompare(right.name));
-  const crates = entries.filter((entry) => entry.isDirectory());
-  if (crates.length === 0) fail("filesystem scan failed: no crate directories found");
-  for (const entry of crates) {
+  for (const entry of entries) {
+    if (entry.isSymbolicLink() || !entry.isDirectory()) {
+      fail(`workspace crate entry must be a real directory: crates/${entry.name}`);
+    }
+  }
+  const actualCrates = entries.map((entry) => entry.name);
+  if (JSON.stringify(actualCrates) !== JSON.stringify(WORKSPACE_CRATES)) {
+    fail(`workspace crate directory set drifted: ${actualCrates.join(", ")}`);
+  }
+  for (const entry of entries) {
     const crateRoot = path.join(cratesRoot, entry.name);
     await readText(path.join(crateRoot, "Cargo.toml"));
     for (const [name, expected] of canonical) {
@@ -94,6 +119,23 @@ async function validateCrateLegalFiles(root) {
         const relative = path.relative(root, file).split(path.sep).join("/");
         fail(`crate legal file drifted from root ${name}: ${relative}`);
       }
+    }
+  }
+}
+
+async function validatePostgresTestcontainersHelpers(root) {
+  for (const relative of POSTGRES_TESTCONTAINERS_HELPERS) {
+    const source = await readText(path.join(root, relative));
+    const tagCalls = [...source.matchAll(/\.with_tag\(\s*"([^"]+)"\s*\)/gu)];
+    if (tagCalls.length !== 1) {
+      fail(`testcontainers Postgres pin count drifted: ${relative}: ${tagCalls.length}`);
+    }
+    if (tagCalls[0][1] !== POSTGRES_TESTCONTAINERS_TAG) {
+      fail(`testcontainers Postgres image identity drifted: ${relative}: ${tagCalls[0][1]}`);
+    }
+    const postgresPins = [...source.matchAll(/Postgres::default\(\)\s*\.with_tag\(\s*"([^"]+)"\s*\)/gu)];
+    if (postgresPins.length !== 1) {
+      fail(`testcontainers Postgres pin count drifted: ${relative}: ${postgresPins.length}`);
     }
   }
 }
@@ -543,6 +585,7 @@ async function main() {
   const lockText = await readText(path.join(root, "package-lock.json"));
   validatePackage(parseJson(packageText, "package.json"), parseJson(lockText, "package-lock.json"));
   await validateCrateLegalFiles(root);
+  await validatePostgresTestcontainersHelpers(root);
   await validateShellScripts(root);
 }
 
