@@ -1,6 +1,6 @@
 # Make lease retirement atomic with heartbeat renewal
 
-- **State:** ongoing
+- **State:** done
 - **Origin:** phase-2A zero-debt hardening design
 - **Epic:** ../epics/phase-2-data-plane.md
 
@@ -11,16 +11,16 @@
 ## Acceptance criteria
 
 - [x] AC1: the TLA+ model includes time, deadline, lease identity, bounded heartbeats, and `HeartbeatExpiryFence`; TLC passes and the documented stale-expiry mutation fails that invariant — *verify:* `make tla` plus mutation evidence in `docs/formal/README.md`.
-- [ ] AC2: `Dispatcher` exposes atomic `retire_next_expired_lease`; no `expired` list contract remains — *verify:* `rg -n "fn expired|\.expired\(" crates` returns no matches and ring 2 is green.
-- [ ] AC3: heartbeat-first preserves the renewal, retirement-first rejects heartbeat, and two sweepers retire one grant once in memory and Postgres — *verify:* named ring-2/ring-3 regressions.
-- [ ] AC4: expiry/retry events still come from `Job::expire_lease`, retain lineage, and late ACK remains a conflict — *verify:* mirrored lifecycle suites and gRPC e2e.
-- [ ] AC5: architecture docs and every sweep call site describe/use the atomic contract — *verify:* docs review, `make ci`, `make tla`.
+- [x] AC2: `Dispatcher` exposes atomic `retire_next_expired_lease`; no `expired` list contract remains — *verify:* `rg -n "fn expired|\.expired\(" crates` returns no matches and ring 2 is green.
+- [x] AC3: heartbeat-first preserves the renewal, retirement-first rejects heartbeat, and two sweepers retire one grant once in memory and Postgres — *verify:* named ring-2/ring-3 regressions.
+- [x] AC4: expiry/retry events still come from `Job::expire_lease`, retain lineage, and late ACK remains a conflict — *verify:* mirrored lifecycle suites and gRPC e2e.
+- [x] AC5: architecture docs and every sweep call site describe/use the atomic contract — *verify:* docs review, `make ci`, `make tla`.
 
 ## Dependencies
 
 - Approved ADR-0016 and hardening design; both accepted 2026-07-21.
 
-## Evidence (technical gate prepared 2026-07-21; closure still pending independent review)
+## Evidence
 
 - Task 2 formal RED (`make tla`): the deliberate stale/early-class expiry
   guard violated `HeartbeatExpiryFence` at graph depth 4 after
@@ -72,14 +72,47 @@
   `advisories ok, bans ok, licenses ok, sources ok`.
 - `git diff --check` — exit 0, no output.
 
-## Deliberately open before closure
+## Independent closeout review (2026-07-21)
 
-- Independent review verdicts required by DoD item 8: a reviewer must read
-  ADR-0016 and hardening design §§3–4, reproduce TLC and the controlled race,
-  then record both spec-compliance and quality verdicts. No implementer
-  self-certification is recorded here.
-- Final spec-fidelity statement is reserved for that review outcome.
-- The item remains in `ongoing/`; do not move it to `done/` until the two
-  verdicts and final spec-fidelity statement are present.
+- Spec compliance: ✅ Faithful to ADR-0016 and hardening design §§3–4.
+- Quality: Approved — no Critical, Important, or unrecorded Minor findings.
 
-## Spec-fidelity statement (filled at close)
+The independent reviewer read the approved sources, matched the reviewed
+package byte-for-byte to the cumulative diff, and reproduced the mandatory
+formal and controlled-lock evidence. This closes DoD review item 8; it is not
+an implementer self-certification.
+
+## Independent reproduction and acceptance evidence
+
+- `make tla` — exit 0: 74,079 generated / 18,598 distinct / 0 queued / depth
+  24; TLC completed with no error.
+- Three controlled Postgres races —
+  `locked_expired_row_does_not_beat_earlier_heartbeat`,
+  `concurrent_retirement_records_one_expiry`, and
+  `skip_locked_retires_second_expired_lease` — each exited 0 with 1 passed,
+  0 failed, and 8 filtered tests.
+- `rg -n "fn expired|\.expired\(" crates` — exit 1, no matches.
+- The fresh closeout `make ci` evidence is exit 0 with 119 unit/integration
+  tests green, plus fmt, strict clippy, rustdoc, deny, typos, markdownlint,
+  and cargo-machete. The reviewer matched that current-head evidence and did
+  not rerun an identical full suite.
+
+AC1 is proved by the documented mutation witness and fresh TLC result. AC2 is
+proved by the no-match scan and ring-2 suite. AC3 is proved by the named
+memory/Postgres order and exactly-once regressions above. AC4 is proved by the
+aggregate-owned expiry path, mirrored lifecycle suites, and gRPC end-to-end
+coverage. AC5 is proved by the reconciled architecture pages, independent docs
+review, fresh TLC, and CI.
+
+## Spec-fidelity statement
+
+Faithful — implements hardening design §§3–4 and ADR-0016 without divergence:
+the atomic adapter contract fences accepted heartbeats; expiry/retry events,
+lineage, and the public `koine.v1` contract remain unchanged. Formal liveness
+is stated only under its finite-heartbeat model assumption.
+
+## Phase boundary
+
+This item is closed, but Phase 2B remains blocked by the separate
+resource-safety and operational-closure hardening slices. It does not claim to
+close those slices or the wider phase-2A hardening program.
