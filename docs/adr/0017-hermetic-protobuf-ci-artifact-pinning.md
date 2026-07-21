@@ -31,3 +31,18 @@
   `latest` downloads (unreviewed executable changes); build every tool from
   source in CI (larger attack and maintenance surface without a stronger
   identity guarantee).
+
+## 2026-07-21 applicable supply-chain audit amendment
+
+Post-implementation audit found that the initially selected
+`markdownlint-cli2` 0.22.1 lock resolved vulnerable `js-yaml` and `markdown-it`
+versions, and that the first focused gate did not fail closed across every
+policy category. The applicable reviewed identities are now
+`markdownlint-cli2` 0.23.1, Node 22.23.1, npm 10.9.8, and
+`actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444` with the
+`v5.0.0` allowlist comment and disabled package-manager cache.
+
+This is an application amendment, not a status or architecture change. The
+new exact identities remove the audited dependency findings and preserve the
+accepted decision that executable inputs and their update surface remain
+immutable and reviewable.

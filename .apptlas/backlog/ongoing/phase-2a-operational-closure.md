@@ -22,6 +22,13 @@
 - [Make lease retirement atomic with heartbeat renewal](../done/phase-2a-atomic-lease-retirement.md) — **State:** done.
 - [Bound Postgres resources on the phase-2A server](../done/phase-2a-postgres-resource-safety.md) — **State:** done.
 
+## Temporary operational exception
+
+- `compose.yaml` retains exactly `postgres:17` without a digest. **Owner:**
+  Operational Task 4. **Deadline:** before this item can close. The
+  supply-chain gate permits only that exact temporary value; Task 4 replaces
+  it with the approved digest and removes the exception branch.
+
 ## Evidence (filled at close)
 
 ## Spec-fidelity statement (filled at close)

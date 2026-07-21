@@ -401,3 +401,15 @@ first-class `.proto` contract and still requires a trusted regeneration path.
 Rejected because it would leave the heartbeat race, listener pool pressure,
 zero-value configuration, stale phase claims, and drift-prone supply-chain
 surfaces outside the closure gate.
+
+## 2026-07-21 applicable supply-chain audit amendment
+
+Post-implementation audit makes `markdownlint-cli2` 0.23.1, Node 22.23.1,
+npm 10.9.8, and
+`actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444` (`v5.0.0`)
+the applicable reviewed identities. The setup action disables package-manager
+cache, installation remains `npm ci --ignore-scripts`, and execution remains
+`npm exec`. The fail-closed gate and its mutation fixtures enforce the
+approved action/comment allowlist, download checksums, npm/Node identities,
+and image policy. These exact upgrades preserve ADR-0017 rather than changing
+the accepted design.

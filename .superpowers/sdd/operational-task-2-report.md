@@ -93,3 +93,36 @@ release comments.
   changed.
 - GitHub-hosted images and upstream registries remain provider-managed trust
   roots, as documented by the policy.
+
+## 2026-07-21 review disposition
+
+The maintainer made `markdownlint-cli2` 0.23.1, Node 22.23.1, npm 10.9.8, and
+`actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444` (`v5.0.0`)
+the applicable exact identities. ADR-0017, the hardening design, and the
+operational plan carry dated application amendments; accepted status is
+unchanged.
+
+- I1 is resolved by a fail-closed allowlist gate plus executable fixture
+  suite. Twenty-three probes cover tags, missing/wrong action comments,
+  quoted and flow `uses`, both npx flags, comment suppression, scanner
+  failures, TLA download/run checksums, npm/package/setup-node/Node drift,
+  image policy, and unapproved curl/wget downloads.
+- I2 is resolved by the exact setup-node/Node/npm identities and the regenerated
+  0.23.1 lock. `npm audit --json` reports zero vulnerabilities; `make md`
+  reports `markdownlint-cli2` 0.23.1 and zero issues.
+- The Minor image finding is explicit debt rather than an implicit bypass:
+  only `compose.yaml`'s `postgres:17` is temporarily allowed. **Owner:**
+  Operational Task 4. **Deadline:** before phase-2A operational closure. Any
+  drift or additional non-digest image fails the mutation suite.
+- The previously reported 0.22.1 audit concern is superseded by this
+  disposition. The inter-task `protoc` gap remains owned by Task 3; no apt or
+  fallback was reintroduced.
+
+Updated verification checksums:
+
+- `package-lock.json`:
+  `7a2dcacdfa91b5f94c42e80f2fa1d0242c069e1be9f6de6c3466e713325d91c3`
+- `.github/scripts/check-supply-chain.sh`:
+  `0c2b2da778115809bafb38e49f915baad3da7a214b127f15ba63c5ee219252ba`
+- `.github/scripts/test-supply-chain.sh`:
+  `2beeb16e5d021df8f4f417489d6b07a9b249f0c502c958aebcc22c29a193d761`
