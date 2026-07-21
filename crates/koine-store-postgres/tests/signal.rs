@@ -160,6 +160,26 @@ async fn listener_pid(pool: &sqlx::PgPool, previous_pid: Option<i32>) -> i32 {
     .expect("listener becomes visible in pg_stat_activity")
 }
 
+async fn listener_backend_exists(pool: &sqlx::PgPool, pid: i32) -> bool {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE pid = $1 AND query LIKE 'LISTEN%koine_dispatch%')",
+    )
+    .bind(pid)
+    .fetch_one(pool)
+    .await
+    .expect("inspect listener backend")
+}
+
+async fn wait_for_listener_backend_to_disappear(pool: &sqlx::PgPool, pid: i32) {
+    tokio::time::timeout(Duration::from_secs(1), async {
+        while listener_backend_exists(pool, pid).await {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("listener backend disappears after its signal owner is dropped");
+}
+
 #[tokio::test]
 async fn presence_skips_when_pool_is_saturated() {
     let f = fx_with_pool_size(NonZeroU32::new(1).expect("non-zero pool size")).await;
@@ -261,9 +281,10 @@ async fn listener_reconnects_after_backend_termination() {
     assert!(terminated, "listener backend was terminated");
 
     let signal = Arc::new(f.signal);
+    let wait_signal = Arc::clone(&signal);
     let (ready_tx, ready_rx) = oneshot::channel();
     let wait = tokio::spawn(wait_after_subscribing(
-        signal,
+        wait_signal,
         f.queue.clone(),
         Duration::from_secs(5),
         ready_tx,
@@ -283,6 +304,27 @@ async fn listener_reconnects_after_backend_termination() {
         .expect("wait wakes within the reconnect budget")
         .expect("wait task completed");
     assert!(started.elapsed() < Duration::from_secs(2));
+}
+
+#[tokio::test]
+async fn listener_lives_until_last_signal_clone_is_dropped() {
+    let Fx {
+        _guard,
+        pool,
+        signal,
+        ..
+    } = fx().await;
+    let listener_pid = listener_pid(&pool, None).await;
+    let remaining_signal = signal.clone();
+
+    drop(signal);
+    assert!(
+        listener_backend_exists(&pool, listener_pid).await,
+        "dropping an intermediate clone keeps the listener alive"
+    );
+    drop(remaining_signal);
+
+    wait_for_listener_backend_to_disappear(&pool, listener_pid).await;
 }
 
 #[tokio::test]

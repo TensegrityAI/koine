@@ -4,16 +4,33 @@ use koine_application::ports::DispatchSignal;
 use koine_domain::QueueName;
 use sqlx::PgPool;
 use sqlx::postgres::{PgListener, PgPoolOptions};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
+use tokio::task::AbortHandle;
 
 const NOTIFICATION_BUFFER: usize = 1_024;
 const RECONNECT_BACKOFF: Duration = Duration::from_millis(100);
 
+struct SignalHub {
+    notifications: broadcast::Sender<String>,
+    listener_task: AbortHandle,
+}
+
+impl Drop for SignalHub {
+    fn drop(&mut self) {
+        self.listener_task.abort();
+    }
+}
+
 /// Postgres-backed dispatch signal using NOTIFY/LISTEN.
+///
+/// Clones share one listener hub. Dropping the final clone cancels its
+/// background task and releases the dedicated listener connection.
+#[derive(Clone)]
 pub struct PgSignal {
     notify_pool: PgPool,
-    notifications: broadcast::Sender<String>,
+    hub: Arc<SignalHub>,
 }
 
 impl PgSignal {
@@ -41,7 +58,7 @@ impl PgSignal {
 
         let (notifications, _) = broadcast::channel(NOTIFICATION_BUFFER);
         let fanout = notifications.clone();
-        tokio::spawn(async move {
+        let listener_task = tokio::spawn(async move {
             loop {
                 match listener.recv().await {
                     Ok(notification) => {
@@ -54,7 +71,10 @@ impl PgSignal {
 
         Ok(Self {
             notify_pool,
-            notifications,
+            hub: Arc::new(SignalHub {
+                notifications,
+                listener_task: listener_task.abort_handle(),
+            }),
         })
     }
 }
@@ -69,7 +89,7 @@ impl DispatchSignal for PgSignal {
     }
 
     async fn wait(&self, queue: &QueueName, timeout: Duration) {
-        let mut receiver = self.notifications.subscribe();
+        let mut receiver = self.hub.notifications.subscribe();
         let queue_str = queue.as_str();
         let _ = tokio::time::timeout(timeout, async {
             loop {
