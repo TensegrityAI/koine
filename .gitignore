@@ -1,5 +1,6 @@
 _archive/
 .superpowers/
+.worktrees/
 target/
 **/*.rs.bk
 .env
