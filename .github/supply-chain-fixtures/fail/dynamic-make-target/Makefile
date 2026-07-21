@@ -2,6 +2,7 @@ TLA_TOOLS := docs/formal/.tools/tla2tools.jar
 TLA_TOOLS_VERSION := 1.7.4
 TLA_TOOLS_SHA256 := 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
 TLA_TOOLS_URL := https://github.com/tlaplus/tlaplus/releases/download/v$(TLA_TOOLS_VERSION)/tla2tools.jar
+TLA_ALIAS := tla-alias
 
 md:
 	npm ci --ignore-scripts
@@ -22,5 +23,5 @@ tla: $(TLA_TOOLS)
 	echo "$(TLA_TOOLS_SHA256)  $(TLA_TOOLS)" | sha256sum -c
 	cd docs/formal && java -XX:+UseParallelGC -jar .tools/tla2tools.jar -config lease_protocol.cfg lease_protocol.tla
 
-tla: $(TLA_TOOLS)
-	echo duplicate
+$(TLA_ALIAS):
+	echo dynamic

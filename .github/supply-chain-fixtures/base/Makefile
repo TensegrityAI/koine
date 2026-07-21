@@ -12,7 +12,7 @@ supply-chain:
 	bash .github/scripts/check-supply-chain.sh
 	bash .github/scripts/test-supply-chain.sh
 
-$(TLA_TOOLS):
+docs/formal/.tools/tla2tools.jar:
 	mkdir -p docs/formal/.tools
 	curl -fsSL $(TLA_TOOLS_URL) -o $(TLA_TOOLS).tmp
 	echo "$(TLA_TOOLS_SHA256)  $(TLA_TOOLS).tmp" | sha256sum -c

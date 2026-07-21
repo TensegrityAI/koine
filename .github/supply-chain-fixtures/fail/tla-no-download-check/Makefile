@@ -7,7 +7,7 @@ md:
 	npm ci --ignore-scripts
 	npm exec -- markdownlint-cli2 "**/*.md"
 
-$(TLA_TOOLS):
+docs/formal/.tools/tla2tools.jar:
 	mkdir -p docs/formal/.tools
 	curl -fsSL $(TLA_TOOLS_URL) -o $(TLA_TOOLS).tmp
 	mv $(TLA_TOOLS).tmp $(TLA_TOOLS)

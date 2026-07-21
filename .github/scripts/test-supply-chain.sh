@@ -67,6 +67,7 @@ expect_pass valid
 expect_pass comments pass/comments
 expect_pass quoted_scalars pass/quoted-scalars
 expect_pass reordered_json pass/reordered-json
+expect_pass shell_script_invocation pass/shell-script-invocation
 
 expect_fail action_tag fail/action-tag "floating or unapproved GitHub Action"
 expect_fail action_without_comment fail/action-no-comment "approved release comment"
@@ -110,6 +111,11 @@ expect_fail setup_java_latest fail/setup-java-latest "Java version drift"
 expect_fail shell_indirection fail/shell-indirection "shell command indirection is forbidden"
 expect_fail repository_script_download fail/repository-script "unapproved executable download"
 expect_fail duplicate_tla_target fail/duplicate-tla-target "duplicate Makefile target: tla"
+expect_fail shell_option_before_command fail/shell-option-before-command "shell command indirection is forbidden"
+expect_fail shell_command_cluster fail/shell-command-cluster "shell command indirection is forbidden"
+expect_fail cargo_toolchain_selector fail/cargo-toolchain-selector "unapproved cargo install"
+expect_fail rustup_run_cargo fail/rustup-run-cargo "unapproved cargo install"
+expect_fail dynamic_make_target fail/dynamic-make-target "dynamic Makefile target is forbidden"
 
 fixture_root
 shell_scanner_root=$fixture_path

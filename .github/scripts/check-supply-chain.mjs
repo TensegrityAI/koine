@@ -217,16 +217,26 @@ function containsCommand(source, command) {
 }
 
 function containsCargoInstall(source) {
-  const expression = /(^|[\s;&|($])(?:\/?[A-Za-z0-9._-]+\/)*cargo\s+install(?=\s|$)/mu;
+  const expression = /(^|[\s;&|($])(?:\/?[A-Za-z0-9._-]+\/)*cargo(?:\s+\+[A-Za-z0-9._-]+)?\s+install(?=\s|$)/mu;
   return expression.test(executableShellText(source));
 }
 
 function containsShellIndirection(source) {
-  const wrapper = "(?:(?:/(?:usr/)?bin/)?(?:env|command)\\s+)*";
-  const shell = "(?:(?:/(?:usr/)?bin/)?(?:(?:ba|da|k|z)?sh|fish)|\\$\\{?SHELL\\}?)";
-  const option = "(?:-[A-Za-z]*c[A-Za-z]*|--command)";
-  const expression = new RegExp(`(^|[\\s;&|($])${wrapper}${shell}\\s+${option}(?=\\s|$)`, "mu");
-  return expression.test(executableShellText(source));
+  const segments = executableShellText(source).split(/[\n;&|()]+/u);
+  const shells = new Set(["bash", "sh", "zsh", "dash"]);
+  for (const segment of segments) {
+    const tokens = segment.trim().split(/\s+/u).filter(Boolean);
+    for (const [index, token] of tokens.entries()) {
+      const basename = token.split("/").at(-1);
+      if (!shells.has(basename)) continue;
+      for (const option of tokens.slice(index + 1)) {
+        if (option === "--") break;
+        if (!option.startsWith("-") && !option.startsWith("+")) break;
+        if (option === "--command" || /^-[^-]*c/u.test(option)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 function validateShellCommands(command, location) {
@@ -361,6 +371,10 @@ function validateMakefile(text) {
   const lines = text.split(/\r?\n/u);
   const variables = new Map();
   for (const line of lines) {
+    const target = line.match(/^([^#\s][^:]*):(?:\s|$)/u);
+    if (target && /\$(?:\(|\{)/u.test(target[1])) {
+      fail(`dynamic Makefile target is forbidden: ${target[1].trim()}`);
+    }
     const match = line.match(/^([A-Z0-9_]+) := (.+)$/u);
     if (!match) continue;
     if (variables.has(match[1])) fail(`duplicate Makefile identity: ${match[1]}`);
@@ -375,7 +389,11 @@ function validateMakefile(text) {
   for (const [name, value] of expected) {
     if (variables.get(name) !== value) fail(`${name} must equal ${value}`);
   }
-  const downloadRecipes = targetRecipes(lines, "$(TLA_TOOLS):", "$(TLA_TOOLS)");
+  const downloadRecipes = targetRecipes(
+    lines,
+    "docs/formal/.tools/tla2tools.jar:",
+    "docs/formal/.tools/tla2tools.jar",
+  );
   const expectedDownload = [
     "mkdir -p docs/formal/.tools",
     "curl -fsSL $(TLA_TOOLS_URL) -o $(TLA_TOOLS).tmp",
