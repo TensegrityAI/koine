@@ -22,13 +22,6 @@
 - [Make lease retirement atomic with heartbeat renewal](../done/phase-2a-atomic-lease-retirement.md) — **State:** done.
 - [Bound Postgres resources on the phase-2A server](../done/phase-2a-postgres-resource-safety.md) — **State:** done.
 
-## Temporary operational exception
-
-- `compose.yaml` retains exactly `postgres:17` without a digest. **Owner:**
-  Operational Task 4. **Deadline:** before this item can close. The
-  supply-chain gate permits only that exact temporary value; Task 4 replaces
-  it with the approved digest and removes the exception branch.
-
 ## Evidence (filled at close)
 
 - Operational Task 2 current evidence is recorded in
@@ -40,6 +33,13 @@
   A fresh isolated target fails with the pre-change build and an invalid
   `PROTOC`; after selecting exact `protoc-bin-vendored` 3.2.0 directly, a
   second fresh target builds with the same poisoned environment. AC2 remains
+  unchecked until independent review and parent-item closure.
+- Operational Task 4 current evidence is recorded in
+  [the image, manifest, and package report](../../../.superpowers/sdd/operational-task-4-report.md).
+  The approved Postgres digest now covers Compose and both real test harnesses;
+  normalized internal dependency edges are byte-identical; all crate manifests
+  are non-publishable; and the seven implemented package lists contain their
+  required sources, assets, `LICENSE`, and `NOTICE`. AC3 and AC4 remain
   unchecked until independent review and parent-item closure.
 
 ## Spec-fidelity statement (filled at close)

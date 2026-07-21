@@ -5,11 +5,13 @@
 Operational Task 2 has a fail-closed semantic supply-chain gate in commits
 `348625d1731c29556d6432be5edfa449bd59d8a0` and
 `0c7f28e1a9e5756f61d9440816031c0335b565c0`, with final command-parser closure
-in `ba66ff4f887c5a4404e3a027faa44fae06a6ff3a`. The Bash entrypoint requires the
+in `ba66ff4f887c5a4404e3a027faa44fae06a6ff3a`, immutable Postgres closure in
+`9888c7c`, and crate legal-file integrity in `1d8e1ed`. The Bash entrypoint
+requires the
 reviewed Node runtime and installed parser, while the ESM checker enumerates
 workflows and repository-owned shell scripts directly from the filesystem and
 parses policy-bearing YAML and JSON before enforcing exact executable
-identities. Its repository-owned suite currently has 57 passing probes.
+identities. Its repository-owned suite currently has 61 passing probes.
 
 The parent operational-closure item remains ongoing. This cut supplies current
 evidence for AC1 but does not mark it complete, close the item, or claim the
@@ -21,7 +23,7 @@ changed.
 
 ## Current verification
 
-- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 57 mutation
+- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 61 mutation
   and fail-closed probes pass.
 - `npm audit --json` reports 0 vulnerabilities at every severity.
 - `make md` installs the exact lock, runs `markdownlint-cli2` 0.23.1, and
@@ -43,9 +45,9 @@ Current verification identities:
 - Bash wrapper SHA-256:
   `70aec3c4af9b6b4796b1fa51443066e6c1306b7ab44057af126ae59628a42e42`
 - ESM checker SHA-256:
-  `65becfbff924598f8125187ba6590e251159838f88aa60d2860ed7458e798f0e`
+  `1557d9637667d48cd98073c4edb826061ed434a30d19f5b949e2c142f899bc7a`
 - Mutation suite SHA-256:
-  `aba06bdb9a26fa5247af1af2a57ff3650c03fcc5598361772548b16018c4fb4f`
+  `fe606107683d9fdaf5d75b8caf66471b380e074541b7ab3c1c5f80ad8f9aaca5`
 - Direct `js-yaml` integrity:
   `sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==`
 
@@ -71,7 +73,8 @@ Command-parser RED: before commit `ba66ff4`, the checker accepted
 left-hand side was `$(TLA_ALIAS)`. GREEN adds those three class regressions,
 retains explicit `dash -lc` and `rustup run stable cargo install` coverage, and
 proves that a normal `bash --noprofile ./script.sh` invocation remains allowed.
-All 57 current probes pass.
+Operational Task 4 adds wrong-digest image and drifted, missing, and symlinked
+crate legal-file regressions. All 61 current probes pass.
 
 ## Enforced policy surface
 
@@ -82,7 +85,8 @@ All 57 current probes pass.
   allowlist. Unsupported inline, quoted-key, or flow action forms fail closed;
   repository-local block actions remain allowed.
 - All jobs use `ubuntu-24.04`. Every workflow and Compose image requires an
-  immutable digest except the one exact, temporary `postgres:17` exception.
+  immutable digest. The canonical Postgres service must use the exact reviewed
+  Postgres 17 identity; tag-only and wrong-digest mutations fail.
 - Setup-node is allowed only in the canonical Markdownlint and supply-chain
   jobs, with exact Node, cache, step-order, and npm-install associations.
 - Setup-java is allowed only in the canonical TLA job, with exact Temurin
@@ -103,6 +107,8 @@ All 57 current probes pass.
   including environment, `command`, substitution, and chain wrappers.
 - Package and lock semantics enforce exact direct pins, registry URLs,
   SHA-512 integrity, Node/npm contracts, and the absence of lifecycle scripts.
+- Every crate has regular-file `LICENSE` and `NOTICE` copies byte-identical to
+  the repository root; content drift, absence, and symlinks fail closed.
 
 ## Authority and history preservation
 
@@ -117,16 +123,17 @@ Commit `bced29b` was the initial Operational Task 2 implementation. Its textual
 gate, 0.22.1 Markdownlint graph, reported probe count, hashes, and vulnerability
 finding are historical evidence only and are superseded by the current status,
 identities, semantic checker, audit result, and checksums above. Later review
-amendments and reports that described 23, 44, or 51 probes, and their associated
-checker/test hashes, are likewise superseded by the current 57-probe suite and
-current hashes above. They are not presented as current verification.
+amendments and reports that described 23, 44, 51, 57, or 58 probes, and their
+associated checker/test hashes, are likewise superseded by the current
+61-probe suite and current hashes above. They are not presented as current
+verification.
 
 ## Remaining concerns and owners
 
-- Task 3 still owns the deliberate hosted-runner `protoc` gap. No apt install
-  or system-compiler fallback was reintroduced in this cut.
-- Task 4 still owns the exact `compose.yaml` `postgres:17` exception. Its
-  deadline remains before phase-2A operational closure; the exception and gate
-  branch must be removed together.
+- Operational Task 3 removed the hosted-runner `protoc` gap with the exact
+  vendored compiler; no apt install or system-compiler fallback remains.
+- Operational Task 4 removed the temporary Postgres exception and its gate
+  branch in `9888c7c`; no image-policy exception remains. Commit `1d8e1ed`
+  prevents the package legal-file copies from drifting.
 - GitHub-hosted runner images and upstream registries remain provider-managed
   trust roots, as recorded in the policy.

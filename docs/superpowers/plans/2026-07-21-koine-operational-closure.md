@@ -517,3 +517,27 @@ rejects duplicate JSON keys, enumerates workflows independently of ignore
 files, and enforces the reviewed action/comment, Node/npm, TLA+, gitleaks,
 download, and image identities. These exact instructions preserve the
 accepted immutable-input decision and resolve the applicable npm audit.
+
+## 2026-07-21 applicable Operational Task 4 amendment
+
+The temporary `postgres:17` exception described in the historical plan body
+expired when Operational Task 4 started. The applicable implementation pins
+Compose and both testcontainers consumers to
+`postgres:17@sha256:a426e44bac0b759c95894d68e1a0ac03ecc20b619f498a91aae373bf06d8508d`.
+The semantic checker contains no tag-only exception: it requires that exact
+reviewed identity for the repository-owned Postgres service and its mutation
+suite rejects both a tag-only reference and a syntactically valid wrong
+digest.
+
+Internal workspace dependency declarations retain their version, path, kind,
+rename, feature, default-feature, target, optional, and registry metadata while
+moving to root `[workspace.dependencies]` inheritance. Every crate declares
+`publish = false`; Task 4 therefore records `cargo package --allow-dirty
+--list` as file-boundary inspection, not as evidence that publishing is
+enabled or that an archive was successfully built.
+
+Every directory under `crates/` also carries regular-file `LICENSE` and
+`NOTICE` copies byte-identical to the repository-root originals. The semantic
+gate and its mutation suite fail when either file is absent, content-drifted,
+or replaced by a symlink. This guard preserves the package-file requirement
+without weakening the repository scanner's fail-closed symlink rule.

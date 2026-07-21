@@ -61,6 +61,16 @@ The hexagon is compiled: boundaries are crate boundaries, and the dependency
 graph forbids illegal imports (ADR 0003). Direction: domain ← application ←
 adapters ← server.
 
+Internal crate identities live once in root `[workspace.dependencies]` with
+both version and path; member manifests inherit those entries without changing
+dependency kind, rename, features, default features, target, or optionality.
+Every crate is `publish = false` while phase 2B remains blocked. For the seven
+implemented crates, package-file inspection includes the build sources and
+runtime assets plus regular `LICENSE` and `NOTICE` copies. The supply-chain
+gate compares those copies byte-for-byte with the workspace originals and
+rejects missing files or symlinks; this verifies file boundaries without
+authorizing publication.
+
 | Crate | Layer | Role (stubs marked with the phase real behavior arrives) |
 | --- | --- | --- |
 | `koine-domain` | Domain | Aggregates, events, state machines. No async, no I/O — see [koine-domain.md](koine-domain.md) |
@@ -96,6 +106,9 @@ adapters ← server.
 ## Boundaries with the outside
 
 - **Postgres** is the only required runtime dependency (ADR 0005).
+- Repository-owned Compose and testcontainers consumers use the reviewed
+  Postgres 17 image digest; the supply-chain gate rejects tag-only and
+  wrong-digest substitutions (ADR 0017).
 - Workers in any language speak the `koine-proto` contract, enforced today
   by a real server (`koine-grpc` + `koine-server serve`); a ring-4
   conformance suite against a generated SDK (phase 2B) is the polyglot

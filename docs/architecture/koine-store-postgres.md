@@ -133,9 +133,11 @@ durable twin of `koine-store-memory`: the ADR 0011 composite contracts and
 - Depends on `koine-application` (implements its ports) and `koine-domain`
   (folds `Job`, emits `JobEvent`); no crate above it in the hexagon may bypass
   these ports to reach `sqlx` directly (ADR 0003).
-- Requires Postgres — exercised at 11 (testcontainers-modules' default image,
-  ring 3) through 17 (the `koine-server dev-loop`/`serve` manual runs); the
-  schema's floor is native `GENERATED ALWAYS AS IDENTITY` columns (PG 10+).
+- Requires Postgres — ring-3 testcontainers and the Compose development service
+  use Postgres 17 at the repository-reviewed immutable digest (ADR 0017). The
+  schema's floor remains native `GENERATED ALWAYS AS IDENTITY` columns (PG
+  10+), but the repository-owned verification image no longer floats across
+  releases or rebuilds.
 - `koine-store-memory` is the behavioral twin: the crash-recovery lifecycle
   suite (`tests/lifecycle.rs`) mirrors `koine-store-memory`'s ring-2 story
   test-for-test against real SQL (ring 3); `tests/signal.rs` (phase 2A)
