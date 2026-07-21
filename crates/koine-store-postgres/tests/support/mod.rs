@@ -7,15 +7,26 @@ use testcontainers_modules::postgres::Postgres;
 
 /// Starts Postgres and returns (container guard, migrated pool). Keep the
 /// guard alive for the test's duration or the container stops.
+// Each integration-test crate compiles this module separately; `pool.rs`
+// only needs `postgres_url`.
+#[allow(dead_code)]
 pub async fn pg() -> (ContainerAsync<Postgres>, PgPool) {
+    let (container, url) = postgres_url().await;
+    let pool =
+        koine_store_postgres::connect_pool(&url, koine_store_postgres::PoolConfig::default())
+            .await
+            .expect("connect + migrate");
+    (container, pool)
+}
+
+/// Starts Postgres and returns (container guard, connection URL). Keep the
+/// guard alive for the test's duration or the container stops.
+pub async fn postgres_url() -> (ContainerAsync<Postgres>, String) {
     let container = Postgres::default().start().await.expect("start postgres");
     let port = container
         .get_host_port_ipv4(5432)
         .await
         .expect("mapped port");
     let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-    let pool = koine_store_postgres::connect_pool(&url)
-        .await
-        .expect("connect + migrate");
-    (container, pool)
+    (container, url)
 }

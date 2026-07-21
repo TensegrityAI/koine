@@ -4,13 +4,15 @@
 //! tickers that keep leases and dispatch honest without a separate process.
 
 use std::net::SocketAddr;
+use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 use std::time::Duration;
 
 use koine_application::use_cases::sweep::SweepExpiredLeases;
 use koine_grpc::{Deps, GrpcConfig, server};
 use koine_store_postgres::{
-    PgPresence, PgSignal, PostgresDispatcher, PostgresEventStore, PostgresOutboxRelay, connect_pool,
+    PgPresence, PgSignal, PoolConfig, PostgresDispatcher, PostgresEventStore, PostgresOutboxRelay,
+    connect_pool,
 };
 
 use crate::runtime::{SystemClock, UuidV7Ids};
@@ -25,6 +27,10 @@ const DEFAULT_GRPC_ADDR: &str = "0.0.0.0:7419";
 const DEFAULT_MAX_LEASE_TTL_MS: u64 = 300_000;
 /// Default idle-poll fallback for a drained `Fetch` stream: 1 second.
 const DEFAULT_IDLE_POLL_MS: u64 = 1_000;
+/// Default maximum number of connections in the shared operational pool.
+const DEFAULT_DB_MAX_CONNECTIONS: u32 = 16;
+/// Default maximum wait for an operational-pool connection: 5 seconds.
+const DEFAULT_DB_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 /// Sweep and outbox-relay ticker period.
 const TICKER_PERIOD: Duration = Duration::from_millis(500);
 /// Outbox-relay batch size per tick.
@@ -44,6 +50,8 @@ struct ServeConfig {
     max_lease_ttl: Duration,
     /// How long a drained `Fetch` poll waits for a dispatch signal.
     idle_poll: Duration,
+    /// Bounded settings for the shared operational Postgres pool.
+    pool_config: PoolConfig,
 }
 
 /// Reads `serve`'s configuration through `lookup` (`std::env::var(name).ok()`
@@ -57,8 +65,7 @@ struct ServeConfig {
 /// interpolation of an unset variable (`KOINE_WORKER_TOKEN=${UNSET_VAR}`)
 /// yields an empty string, and starting anyway would launch a server whose
 /// auth interceptor is silently misconfigured. Also errors if
-/// `KOINE_GRPC_ADDR`, `KOINE_MAX_LEASE_TTL_MS`, or `KOINE_IDLE_POLL_MS` are
-/// set but fail to parse.
+/// `KOINE_GRPC_ADDR` or any numeric resource setting is zero or malformed.
 fn parse_config(lookup: impl Fn(&str) -> Option<String>) -> Result<ServeConfig, String> {
     let worker_token = lookup("KOINE_WORKER_TOKEN").filter(|token| !token.is_empty());
     let Some(worker_token) = worker_token else {
@@ -70,36 +77,55 @@ fn parse_config(lookup: impl Fn(&str) -> Option<String>) -> Result<ServeConfig, 
         .parse::<SocketAddr>()
         .map_err(|e| format!("KOINE_GRPC_ADDR {addr_raw:?}: {e}"))?;
     let max_lease_ttl_ms =
-        parse_millis(&lookup, "KOINE_MAX_LEASE_TTL_MS", DEFAULT_MAX_LEASE_TTL_MS)?;
-    let idle_poll_ms = parse_millis(&lookup, "KOINE_IDLE_POLL_MS", DEFAULT_IDLE_POLL_MS)?;
+        parse_non_zero_u64(&lookup, "KOINE_MAX_LEASE_TTL_MS", DEFAULT_MAX_LEASE_TTL_MS)?;
+    let idle_poll_ms = parse_non_zero_u64(&lookup, "KOINE_IDLE_POLL_MS", DEFAULT_IDLE_POLL_MS)?;
+    let max_connections = parse_non_zero_u32(
+        &lookup,
+        "KOINE_DB_MAX_CONNECTIONS",
+        DEFAULT_DB_MAX_CONNECTIONS,
+    )?;
+    let acquire_timeout_ms = parse_non_zero_u64(
+        &lookup,
+        "KOINE_DB_ACQUIRE_TIMEOUT_MS",
+        DEFAULT_DB_ACQUIRE_TIMEOUT_MS,
+    )?;
 
     Ok(ServeConfig {
         database_url,
         worker_token,
         grpc_addr,
-        max_lease_ttl: Duration::from_millis(max_lease_ttl_ms),
-        idle_poll: Duration::from_millis(idle_poll_ms),
+        max_lease_ttl: Duration::from_millis(max_lease_ttl_ms.get()),
+        idle_poll: Duration::from_millis(idle_poll_ms.get()),
+        pool_config: PoolConfig::new(max_connections, acquire_timeout_ms),
     })
 }
 
-/// Parses a millisecond-duration env var, falling back to `default` when
-/// `lookup(name)` is `None`.
-///
-/// # Errors
-///
-/// Returns an error string naming the variable and its raw value if it is
-/// set but not a valid `u64`.
-fn parse_millis(
+fn parse_non_zero_u64(
     lookup: &impl Fn(&str) -> Option<String>,
     name: &str,
     default: u64,
-) -> Result<u64, String> {
-    match lookup(name) {
-        None => Ok(default),
+) -> Result<NonZeroU64, String> {
+    let value = match lookup(name) {
+        None => default,
         Some(raw) => raw
             .parse::<u64>()
-            .map_err(|e| format!("{name} {raw:?}: {e}")),
-    }
+            .map_err(|e| format!("{name} {raw:?}: {e}"))?,
+    };
+    NonZeroU64::new(value).ok_or_else(|| format!("{name} must be greater than zero"))
+}
+
+fn parse_non_zero_u32(
+    lookup: &impl Fn(&str) -> Option<String>,
+    name: &str,
+    default: u32,
+) -> Result<NonZeroU32, String> {
+    let value = match lookup(name) {
+        None => default,
+        Some(raw) => raw
+            .parse::<u32>()
+            .map_err(|e| format!("{name} {raw:?}: {e}"))?,
+    };
+    NonZeroU32::new(value).ok_or_else(|| format!("{name} must be greater than zero"))
 }
 
 /// Runs the authenticated `gRPC` data-plane server: connects and migrates,
@@ -114,7 +140,7 @@ fn parse_millis(
 pub async fn run() -> Result<(), String> {
     let cfg = parse_config(|name| std::env::var(name).ok())?;
 
-    let pool = connect_pool(&cfg.database_url)
+    let pool = connect_pool(&cfg.database_url, cfg.pool_config)
         .await
         .map_err(|e| format!("connect/migrate: {e}"))?;
 
@@ -232,6 +258,8 @@ mod tests {
             Duration::from_millis(DEFAULT_MAX_LEASE_TTL_MS)
         );
         assert_eq!(cfg.idle_poll, Duration::from_millis(DEFAULT_IDLE_POLL_MS));
+        assert_eq!(cfg.pool_config.max_connections().get(), 16);
+        assert_eq!(cfg.pool_config.acquire_timeout(), Duration::from_secs(5));
     }
 
     #[test]
@@ -242,6 +270,8 @@ mod tests {
             ("KOINE_GRPC_ADDR", "127.0.0.1:9000"),
             ("KOINE_MAX_LEASE_TTL_MS", "60000"),
             ("KOINE_IDLE_POLL_MS", "250"),
+            ("KOINE_DB_MAX_CONNECTIONS", "4"),
+            ("KOINE_DB_ACQUIRE_TIMEOUT_MS", "900"),
         ]);
         let cfg = parse_config(lookup(&vars)).expect("valid overrides");
         assert_eq!(cfg.worker_token, "t");
@@ -252,6 +282,11 @@ mod tests {
         );
         assert_eq!(cfg.max_lease_ttl, Duration::from_mins(1));
         assert_eq!(cfg.idle_poll, Duration::from_millis(250));
+        assert_eq!(cfg.pool_config.max_connections().get(), 4);
+        assert_eq!(
+            cfg.pool_config.acquire_timeout(),
+            Duration::from_millis(900)
+        );
     }
 
     #[test]
@@ -282,5 +317,39 @@ mod tests {
         ]);
         let err = parse_config(lookup(&vars)).expect_err("invalid idle poll must error");
         assert!(err.contains("KOINE_IDLE_POLL_MS"));
+    }
+
+    #[test]
+    fn zero_resource_values_are_rejected() {
+        for name in [
+            "KOINE_MAX_LEASE_TTL_MS",
+            "KOINE_IDLE_POLL_MS",
+            "KOINE_DB_MAX_CONNECTIONS",
+            "KOINE_DB_ACQUIRE_TIMEOUT_MS",
+        ] {
+            let vars = HashMap::from([("KOINE_WORKER_TOKEN", "t"), (name, "0")]);
+            let err = parse_config(lookup(&vars)).expect_err("zero must fail");
+            assert!(err.contains(name));
+        }
+    }
+
+    #[test]
+    fn invalid_pool_size_is_rejected() {
+        let vars = HashMap::from([
+            ("KOINE_WORKER_TOKEN", "t"),
+            ("KOINE_DB_MAX_CONNECTIONS", "not-a-number"),
+        ]);
+        let err = parse_config(lookup(&vars)).expect_err("invalid pool size must error");
+        assert!(err.contains("KOINE_DB_MAX_CONNECTIONS"));
+    }
+
+    #[test]
+    fn invalid_acquire_timeout_is_rejected() {
+        let vars = HashMap::from([
+            ("KOINE_WORKER_TOKEN", "t"),
+            ("KOINE_DB_ACQUIRE_TIMEOUT_MS", "not-a-number"),
+        ]);
+        let err = parse_config(lookup(&vars)).expect_err("invalid acquire timeout must error");
+        assert!(err.contains("KOINE_DB_ACQUIRE_TIMEOUT_MS"));
     }
 }

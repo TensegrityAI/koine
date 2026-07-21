@@ -13,7 +13,7 @@ use koine_application::use_cases::sweep::SweepExpiredLeases;
 use koine_application::use_cases::worker_ack::WorkerAck;
 use koine_domain::{JobError, JobId, Priority, QueueName, RetryPolicy, WorkerId};
 use koine_store_postgres::{
-    PostgresDispatcher, PostgresEventStore, PostgresOutboxRelay, connect_pool,
+    PoolConfig, PostgresDispatcher, PostgresEventStore, PostgresOutboxRelay, connect_pool,
 };
 use serde_json::Value;
 
@@ -186,7 +186,7 @@ async fn check_stories(
 /// job's recorded story is missing an expected marker.
 pub async fn run(database_url: &str) -> Result<(), String> {
     // 1. connect + migrate; build store/dispatcher/relay with SystemClock/UuidV7Ids
-    let pool = connect_pool(database_url)
+    let pool = connect_pool(database_url, PoolConfig::default())
         .await
         .map_err(|e| format!("connect/migrate: {e}"))?;
     let ids = Arc::new(UuidV7Ids);
