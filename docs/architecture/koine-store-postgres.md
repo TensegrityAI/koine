@@ -51,11 +51,12 @@ durable twin of `koine-store-memory`: the ADR 0011 composite contracts and
 - **`PgPresence` is best-effort by design** (`presence.rs`) — `seen` upserts
   `event_store.workers` (`last_seen = now()`, `last_queue` via `COALESCE`
   so a call with `queue: None` doesn't clobber the last known queue) and
-  silently swallows any DB error: presence tracking must never fail or slow
-  down a worker's request (ADR 0015). There is no retry, no logging, no
-  propagated failure — a dropped presence update is invisible by design,
-  not a bug. It uses `try_acquire`, so a saturated operational pool returns
-  immediately; after acquisition its UPSERT has a private 100 ms budget.
+  silently swallows any DB error: presence tracking must never fail (ADR
+  0015). There is no retry, no logging, no propagated failure — a dropped
+  presence update is invisible by design, not a bug. It uses `try_acquire`:
+  if no operational connection is idle, it skips the write immediately rather
+  than waiting for the general acquisition timeout. If it acquires a connection
+  immediately, its synchronous UPSERT can add up to its private 100 ms budget.
 - **Append is one transaction** (`store.rs::append_in_tx`) — explicit
   `SELECT max(version)` against the expected version (races resolved by the
   unique-constraint mapping Postgres error `23505` on

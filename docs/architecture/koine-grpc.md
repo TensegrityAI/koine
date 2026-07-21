@@ -87,13 +87,15 @@ one crate a worker in any language actually talks to.
 - Depended on by `koine-server` (`serve.rs` wires `PgSignal`/`PgPresence`/
   `PostgresEventStore`/`PostgresDispatcher` into `Deps` and calls
   `koine_grpc::server(deps)`).
-- **Test suites, by tier** — `tests/wire.rs` (6 tests, real tonic transport
+- **Test suites, by tier** — `tests/wire.rs` (9 tests, real tonic transport
   over an in-process `tokio::io::duplex` pair, in-memory adapters):
   `unauthenticated_calls_are_rejected`, `fetch_streams_a_claimed_job`,
   `full_story_over_the_wire`, `stale_ack_returns_conflict`,
   `fetch_wakes_on_late_enqueue` (proves signal-driven wakeup against a 10s
-  idle-poll ceiling so a sub-second wake can only have come from the
-  signal), `heartbeat_reports_liveness`. `tests/fetch_idle_disconnect.rs`
+  idle-poll ceiling so a sub-second wake can only have come from the signal),
+  `heartbeat_reports_liveness`, `fail_without_error_is_invalid_argument`,
+  `fail_over_the_wire_schedules_retry`, and
+  `heartbeat_ttl_is_clamped_to_ceiling`. `tests/fetch_idle_disconnect.rs`
   (1 test, `fetch_task_ends_when_receiver_drops_while_idle`, drives
   `WorkerApi::fetch` directly as a trait method with a call-counting
   `Dispatcher` wrapper to prove the leak fix). `tests/grpc_e2e.rs` (2

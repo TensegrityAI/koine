@@ -101,18 +101,18 @@ background tickers, and serves worker traffic until `Ctrl-C`.
 - `dev-loop` remains a development/exercise command, not a production entry
   point; `serve` (phase 2A) is the real production entry point that actually
   serves worker traffic — but only the data plane. `serve` has no unit tests
-  of its own beyond `parse_config`'s env-parsing table (`missing_token_is_
-  refused`, `empty_token_is_refused`, `defaults_apply_when_only_token_is_
-  set`, `overrides_are_parsed`, `invalid_addr_is_rejected`,
-  `invalid_ttl_is_rejected`, `invalid_idle_poll_is_rejected`); its
-  transactional and transport behavior is exercised through `koine-grpc`'s
-  test suites (which build the same `Deps` shape directly) rather than a
-  `serve`-specific integration test.
+  of its own beyond `serve.rs`'s `parse_config` environment-parsing table.
+  That table covers token/address/resource parsing and includes
+  `zero_resource_values_are_rejected`, `invalid_pool_size_is_rejected`, and
+  `invalid_acquire_timeout_is_rejected`; its transactional and transport
+  behavior is exercised through `koine-grpc`'s test suites (which build the
+  same `Deps` shape directly) rather than a `serve`-specific integration test.
 - The configured operational pool contains at most `N` connections; the
   shared `PgSignal` listener is separate, making the process budget exactly
   `N + 1`. The listener fans one `LISTEN` subscription to every idle Fetch
   wait and does not consume operational capacity. `PgPresence` uses that
-  operational pool best-effort: saturation skips the write and an acquired
-  write has a 100 ms budget, so presence never delays a worker request.
+  operational pool best-effort: saturation skips the write immediately and
+  never waits for the general acquisition timeout. After immediate
+  acquisition, its synchronous write can add up to the 100 ms budget.
   Phase 3 must review this capacity budget before adding concurrent relay or
   `EventSink` consumers to the operational pool.
