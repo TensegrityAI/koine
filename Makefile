@@ -45,6 +45,7 @@ machete:
 
 supply-chain:
 	bash .github/scripts/check-supply-chain.sh
+	bash .github/scripts/test-supply-chain.sh
 
 ci: fmt-check lint test doc deny typos md machete supply-chain
 	@echo "✓ all CI checks green"
