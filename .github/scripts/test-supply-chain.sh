@@ -96,6 +96,8 @@ expect_fail store_postgres_digest_drift fail/store-postgres-digest "testcontaine
 expect_fail grpc_postgres_digest_drift fail/grpc-postgres-digest "testcontainers Postgres image identity drifted"
 expect_fail postgres_pin_missing fail/postgres-pin-missing "testcontainers Postgres pin count drifted"
 expect_fail postgres_pin_duplicate fail/postgres-pin-duplicate "testcontainers Postgres pin count drifted"
+expect_fail postgres_pin_in_comment fail/postgres-pin-comment "testcontainers Postgres pin count drifted"
+expect_fail postgres_pin_in_string fail/postgres-pin-string "testcontainers Postgres pin count drifted"
 expect_fail image_without_digest fail/image-no-digest "container image must use a sha256 digest"
 expect_fail multiple_inline_images fail/multiple-images "container image must use a sha256 digest"
 expect_fail multiple_inline_runners fail/multiple-runs-on "hosted runner drift"

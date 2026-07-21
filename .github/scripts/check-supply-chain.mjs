@@ -123,19 +123,211 @@ async function validateCrateLegalFiles(root) {
   }
 }
 
+const RUST_PUNCTUATION = new Set("{}[]();:,.#&<>+-*/=!?|^%@$".split(""));
+
+function rustLexFail(label, index, message) {
+  fail(`Rust helper lex failed: ${label}:${index}: ${message}`);
+}
+
+function rustRawStringHashes(source, index) {
+  if (source[index] !== "r") return null;
+  let cursor = index + 1;
+  while (source[cursor] === "#") cursor += 1;
+  return source[cursor] === '"' ? cursor - index - 1 : null;
+}
+
+function readRustRawString(source, index, hashes, label) {
+  const contentStart = index + hashes + 2;
+  const terminator = `"${"#".repeat(hashes)}`;
+  const contentEnd = source.indexOf(terminator, contentStart);
+  if (contentEnd === -1) rustLexFail(label, index, "unterminated raw string literal");
+  return {
+    next: contentEnd + terminator.length,
+    token: { kind: "string", value: source.slice(contentStart, contentEnd) },
+  };
+}
+
+function readRustString(source, index, label) {
+  let cursor = index + 1;
+  let value = "";
+  const simpleEscapes = new Map([
+    ["0", "\0"],
+    ["t", "\t"],
+    ["n", "\n"],
+    ["r", "\r"],
+    ['"', '"'],
+    ["\\", "\\"],
+  ]);
+  while (cursor < source.length) {
+    const character = source[cursor];
+    if (character === '"') {
+      return { next: cursor + 1, token: { kind: "string", value } };
+    }
+    if (character !== "\\") {
+      value += character;
+      cursor += 1;
+      continue;
+    }
+
+    const escape = source[cursor + 1];
+    if (simpleEscapes.has(escape)) {
+      value += simpleEscapes.get(escape);
+      cursor += 2;
+      continue;
+    }
+    if (escape === "x") {
+      const digits = source.slice(cursor + 2, cursor + 4);
+      if (!/^[0-7][0-9a-f]$/iu.test(digits)) rustLexFail(label, cursor, "unsupported hex string escape");
+      value += String.fromCodePoint(Number.parseInt(digits, 16));
+      cursor += 4;
+      continue;
+    }
+    if (escape === "u" && source[cursor + 2] === "{") {
+      const close = source.indexOf("}", cursor + 3);
+      const digits = close === -1 ? "" : source.slice(cursor + 3, close).replaceAll("_", "");
+      if (!/^[0-9a-f]{1,6}$/iu.test(digits)) rustLexFail(label, cursor, "unsupported Unicode string escape");
+      const codePoint = Number.parseInt(digits, 16);
+      if (codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+        rustLexFail(label, cursor, "invalid Unicode string escape");
+      }
+      value += String.fromCodePoint(codePoint);
+      cursor = close + 1;
+      continue;
+    }
+    if (escape === "\n" || (escape === "\r" && source[cursor + 2] === "\n")) {
+      cursor += escape === "\n" ? 2 : 3;
+      while (/\s/u.test(source[cursor] ?? "")) cursor += 1;
+      continue;
+    }
+    rustLexFail(label, cursor, "unsupported string escape");
+  }
+  rustLexFail(label, index, "unterminated string literal");
+}
+
+function lexRustHelper(source, label) {
+  const tokens = [];
+  let index = 0;
+  while (index < source.length) {
+    if (/\s/u.test(source[index])) {
+      index += 1;
+      continue;
+    }
+    if (source.startsWith("//", index)) {
+      const newline = source.indexOf("\n", index + 2);
+      index = newline === -1 ? source.length : newline + 1;
+      continue;
+    }
+    if (source.startsWith("/*", index)) {
+      const start = index;
+      let depth = 1;
+      index += 2;
+      while (index < source.length && depth > 0) {
+        if (source.startsWith("/*", index)) {
+          depth += 1;
+          index += 2;
+        } else if (source.startsWith("*/", index)) {
+          depth -= 1;
+          index += 2;
+        } else index += 1;
+      }
+      if (depth !== 0) rustLexFail(label, start, "unterminated block comment");
+      continue;
+    }
+    if (source.startsWith("*/", index)) rustLexFail(label, index, "unmatched block-comment terminator");
+
+    const rawHashes = rustRawStringHashes(source, index);
+    if (rawHashes !== null) {
+      const result = readRustRawString(source, index, rawHashes, label);
+      tokens.push(result.token);
+      index = result.next;
+      continue;
+    }
+    if (/[bc]/u.test(source[index])
+      && (source[index + 1] === '"' || rustRawStringHashes(source, index + 1) !== null)) {
+      rustLexFail(label, index, "unsupported Rust string prefix");
+    }
+    if (source[index] === '"') {
+      const result = readRustString(source, index, label);
+      tokens.push(result.token);
+      index = result.next;
+      continue;
+    }
+    if (source[index] === "'") {
+      rustLexFail(label, index, "unsupported Rust literal form");
+    }
+    if (/[A-Za-z_]/u.test(source[index])) {
+      let cursor = index + 1;
+      while (/[A-Za-z0-9_]/u.test(source[cursor] ?? "")) cursor += 1;
+      tokens.push({ kind: "identifier", value: source.slice(index, cursor) });
+      index = cursor;
+      continue;
+    }
+    if (/[0-9]/u.test(source[index])) {
+      let cursor = index + 1;
+      while (/[A-Za-z0-9_]/u.test(source[cursor] ?? "")) cursor += 1;
+      tokens.push({ kind: "number", value: source.slice(index, cursor) });
+      index = cursor;
+      continue;
+    }
+    if (RUST_PUNCTUATION.has(source[index])) {
+      tokens.push({ kind: "punctuation", value: source[index] });
+      index += 1;
+      continue;
+    }
+    rustLexFail(label, index, `unsupported token ${JSON.stringify(source[index])}`);
+  }
+  return tokens;
+}
+
+function rustTokensMatch(tokens, index, expected) {
+  return expected.every(([kind, value], offset) => {
+    const token = tokens[index + offset];
+    return token?.kind === kind && token.value === value;
+  });
+}
+
 async function validatePostgresTestcontainersHelpers(root) {
+  const postgresDefault = [
+    ["identifier", "Postgres"],
+    ["punctuation", ":"],
+    ["punctuation", ":"],
+    ["identifier", "default"],
+    ["punctuation", "("],
+    ["punctuation", ")"],
+  ];
+  const beforeTag = [
+    ["punctuation", "."],
+    ["identifier", "with_tag"],
+    ["punctuation", "("],
+  ];
+  const afterTag = [
+    ["punctuation", ")"],
+    ["punctuation", "."],
+    ["identifier", "start"],
+    ["punctuation", "("],
+  ];
   for (const relative of POSTGRES_TESTCONTAINERS_HELPERS) {
     const source = await readText(path.join(root, relative));
-    const tagCalls = [...source.matchAll(/\.with_tag\(\s*"([^"]+)"\s*\)/gu)];
-    if (tagCalls.length !== 1) {
-      fail(`testcontainers Postgres pin count drifted: ${relative}: ${tagCalls.length}`);
+    const tokens = lexRustHelper(source, relative);
+    const consumers = [];
+    const pinnedConsumers = [];
+    for (let index = 0; index < tokens.length; index += 1) {
+      if (!rustTokensMatch(tokens, index, postgresDefault)) continue;
+      consumers.push(index);
+      let cursor = index + postgresDefault.length;
+      if (!rustTokensMatch(tokens, cursor, beforeTag)) continue;
+      cursor += beforeTag.length;
+      const tag = tokens[cursor];
+      if (tag?.kind !== "string") continue;
+      cursor += 1;
+      if (!rustTokensMatch(tokens, cursor, afterTag)) continue;
+      pinnedConsumers.push({ index, tag: tag.value });
     }
-    if (tagCalls[0][1] !== POSTGRES_TESTCONTAINERS_TAG) {
-      fail(`testcontainers Postgres image identity drifted: ${relative}: ${tagCalls[0][1]}`);
+    if (consumers.length !== 1 || pinnedConsumers.length !== 1 || consumers[0] !== pinnedConsumers[0].index) {
+      fail(`testcontainers Postgres pin count drifted: ${relative}: ${pinnedConsumers.length}/${consumers.length}`);
     }
-    const postgresPins = [...source.matchAll(/Postgres::default\(\)\s*\.with_tag\(\s*"([^"]+)"\s*\)/gu)];
-    if (postgresPins.length !== 1) {
-      fail(`testcontainers Postgres pin count drifted: ${relative}: ${postgresPins.length}`);
+    if (pinnedConsumers[0].tag !== POSTGRES_TESTCONTAINERS_TAG) {
+      fail(`testcontainers Postgres image identity drifted: ${relative}: ${pinnedConsumers[0].tag}`);
     }
   }
 }
