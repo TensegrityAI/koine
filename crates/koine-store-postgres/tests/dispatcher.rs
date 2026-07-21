@@ -73,6 +73,39 @@ async fn enqueue(f: &Fx, priority: i16, not_before_secs: Option<u64>) -> JobId {
     stream
 }
 
+async fn wait_until_query_waits_on_lock(pool: &PgPool, query_prefix: &str, context: &str) {
+    let pattern = format!("{query_prefix}%");
+    tokio::time::timeout(Duration::from_secs(2), async {
+        loop {
+            let waiting: bool = sqlx::query_scalar(
+                "SELECT EXISTS (\
+                 SELECT 1 FROM pg_stat_activity \
+                 WHERE query LIKE $1 AND wait_event_type = 'Lock')",
+            )
+            .bind(&pattern)
+            .fetch_one(pool)
+            .await
+            .expect("inspect blocked query");
+            if waiting {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("{context}"));
+}
+
+async fn expiry_count(f: &Fx, job: JobId) -> usize {
+    f.store
+        .load(job)
+        .await
+        .expect("load")
+        .iter()
+        .filter(|event| event.event.kind() == "lease_expired")
+        .count()
+}
+
 #[tokio::test]
 async fn claims_by_priority_then_fifo_and_appends_leased() {
     let f = fx().await;
@@ -233,30 +266,100 @@ async fn concurrent_retirement_records_one_expiry() {
         .expect("job");
     f.clock.advance(Duration::from_secs(31));
 
-    let (left, right) = tokio::join!(
-        f.dispatcher.retire_next_expired_lease(),
-        f.dispatcher.retire_next_expired_lease(),
-    );
-    let retired = [left.expect("left"), right.expect("right")]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(retired, vec![claimed.job_id]);
-    let kinds = f
-        .store
-        .load(claimed.job_id)
+    let mut event_lock = f.pool.begin().await.expect("begin event-table lock");
+    sqlx::query("LOCK TABLE event_store.events IN ACCESS EXCLUSIVE MODE")
+        .execute(&mut *event_lock)
         .await
-        .expect("load")
-        .into_iter()
-        .map(|e| e.event.kind())
-        .collect::<Vec<_>>();
+        .expect("lock events table");
+
+    let left_dispatcher =
+        PostgresDispatcher::new(f.pool.clone(), Arc::clone(&f.ids), Arc::clone(&f.clock));
+    let right_dispatcher =
+        PostgresDispatcher::new(f.pool.clone(), Arc::clone(&f.ids), Arc::clone(&f.clock));
+    let left = tokio::spawn(async move { left_dispatcher.retire_next_expired_lease().await });
+
+    wait_until_query_waits_on_lock(
+        &f.pool,
+        "SELECT stream_id, version, event_id",
+        "first retirement did not reach the controlled event-table lock",
+    )
+    .await;
+
+    let right = tokio::time::timeout(
+        Duration::from_secs(2),
+        right_dispatcher.retire_next_expired_lease(),
+    )
+    .await
+    .expect("second retirement must observe the in-flight row lock")
+    .expect("right retirement");
+    assert_eq!(right, None);
+
+    event_lock.commit().await.expect("release events table");
     assert_eq!(
-        kinds
-            .iter()
-            .filter(|kind| **kind == "lease_expired")
-            .count(),
-        1
+        left.await.expect("left task").expect("left retirement"),
+        Some(claimed.job_id)
     );
+    assert_eq!(expiry_count(&f, claimed.job_id).await, 1);
+}
+
+#[tokio::test]
+async fn skip_locked_retires_second_expired_lease() {
+    let f = fx().await;
+    let first = enqueue(&f, 0, None).await;
+    let second = enqueue(&f, 0, None).await;
+    let first_claim = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("first claim")
+        .expect("first job");
+    let second_claim = f
+        .dispatcher
+        .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+        .await
+        .expect("second claim")
+        .expect("second job");
+    assert_eq!(first_claim.job_id, first);
+    assert_eq!(second_claim.job_id, second);
+    f.clock.advance(Duration::from_secs(31));
+
+    let mut first_lock = f.pool.begin().await.expect("begin first-row lock");
+    sqlx::query("SELECT job_id FROM event_store.dispatch_queue WHERE job_id = $1 FOR UPDATE")
+        .bind(first.as_uuid())
+        .fetch_one(&mut *first_lock)
+        .await
+        .expect("lock first expired row");
+
+    let retirement =
+        PostgresDispatcher::new(f.pool.clone(), Arc::clone(&f.ids), Arc::clone(&f.clock));
+    let retired = tokio::time::timeout(
+        Duration::from_secs(2),
+        retirement.retire_next_expired_lease(),
+    )
+    .await
+    .expect("SKIP LOCKED must progress past the first candidate")
+    .expect("retire second candidate");
+    assert_eq!(retired, Some(second));
+    assert_eq!(expiry_count(&f, first).await, 0);
+    assert_eq!(expiry_count(&f, second).await, 1);
+
+    first_lock.commit().await.expect("release first row");
+    assert_eq!(
+        retirement
+            .retire_next_expired_lease()
+            .await
+            .expect("retire first candidate"),
+        Some(first)
+    );
+    assert_eq!(
+        retirement
+            .retire_next_expired_lease()
+            .await
+            .expect("queue drained"),
+        None
+    );
+    assert_eq!(expiry_count(&f, first).await, 1);
+    assert_eq!(expiry_count(&f, second).await, 1);
 }
 
 #[tokio::test]
@@ -286,25 +389,12 @@ async fn locked_expired_row_does_not_beat_earlier_heartbeat() {
             .await
     });
 
-    tokio::time::timeout(Duration::from_secs(2), async {
-        loop {
-            let waiting: bool = sqlx::query_scalar(
-                "SELECT EXISTS (\
-                 SELECT 1 FROM pg_stat_activity \
-                 WHERE query LIKE 'UPDATE event_store.dispatch_queue SET lease_expires_at%' \
-                   AND wait_event_type = 'Lock')",
-            )
-            .fetch_one(&f.pool)
-            .await
-            .expect("inspect blocked heartbeat");
-            if waiting {
-                break;
-            }
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("heartbeat reaches locked row before old deadline");
+    wait_until_query_waits_on_lock(
+        &f.pool,
+        "UPDATE event_store.dispatch_queue SET lease_expires_at",
+        "heartbeat did not reach the locked row before the old deadline",
+    )
+    .await;
 
     f.clock.advance(Duration::from_secs(11));
     assert_eq!(
