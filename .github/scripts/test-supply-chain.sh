@@ -106,6 +106,7 @@ expect_fail invalid_json fail/invalid-json "JSON parse failed"
 expect_fail lock_integrity_drift fail/lock-integrity "invalid package-lock integrity"
 expect_fail lock_registry_drift fail/lock-registry "invalid package-lock registry source"
 expect_fail lock_install_script fail/lock-script "package-lock contains install scripts"
+expect_fail legal_file_drift fail/legal-drift "crate legal file drifted from root NOTICE"
 expect_fail cargo_install_missing_locked fail/cargo-install-missing-locked "unapproved cargo install"
 expect_fail cargo_install_wrapper fail/cargo-install-wrapper "unapproved cargo install"
 expect_fail setup_java_latest fail/setup-java-latest "Java version drift"
@@ -144,6 +145,33 @@ if ! grep -Fq "filesystem scan failed" "$filesystem_root/output"; then
   exit 1
 fi
 echo "PASS filesystem_error"
+
+fixture_root
+missing_legal_root=$fixture_path
+unlink "$missing_legal_root/crates/fixture/NOTICE"
+if "$gate" --root "$missing_legal_root" >"$missing_legal_root/output" 2>&1; then
+  echo "FAIL missing_legal_file: gate accepted a missing crate NOTICE" >&2
+  exit 1
+fi
+if ! grep -Fq "filesystem scan failed" "$missing_legal_root/output"; then
+  echo "FAIL missing_legal_file: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS missing_legal_file"
+
+fixture_root
+symlink_legal_root=$fixture_path
+unlink "$symlink_legal_root/crates/fixture/NOTICE"
+ln -s ../../NOTICE "$symlink_legal_root/crates/fixture/NOTICE"
+if "$gate" --root "$symlink_legal_root" >"$symlink_legal_root/output" 2>&1; then
+  echo "FAIL symlink_legal_file: gate accepted a symlinked crate NOTICE" >&2
+  exit 1
+fi
+if ! grep -Fq "not a regular file" "$symlink_legal_root/output"; then
+  echo "FAIL symlink_legal_file: missing diagnostic" >&2
+  exit 1
+fi
+echo "PASS symlink_legal_file"
 
 fixture_root
 missing_node_root=$fixture_path

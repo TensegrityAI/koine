@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import yaml from "js-yaml";
@@ -60,12 +60,41 @@ function versionAtLeast(actual, minimum) {
 
 async function readText(file) {
   try {
-    const metadata = await stat(file);
+    const metadata = await lstat(file);
     if (!metadata.isFile()) fail(`filesystem scan failed: not a regular file: ${file}`);
     return await readFile(file, "utf8");
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("filesystem scan failed")) throw error;
     fail(`filesystem scan failed for ${file}: ${error.message}`);
+  }
+}
+
+async function validateCrateLegalFiles(root) {
+  const canonical = new Map([
+    ["LICENSE", await readText(path.join(root, "LICENSE"))],
+    ["NOTICE", await readText(path.join(root, "NOTICE"))],
+  ]);
+  const cratesRoot = path.join(root, "crates");
+  let entries;
+  try {
+    entries = await readdir(cratesRoot, { withFileTypes: true });
+  } catch (error) {
+    fail(`filesystem scan failed for ${cratesRoot}: ${error.message}`);
+  }
+  entries.sort((left, right) => left.name.localeCompare(right.name));
+  const crates = entries.filter((entry) => entry.isDirectory());
+  if (crates.length === 0) fail("filesystem scan failed: no crate directories found");
+  for (const entry of crates) {
+    const crateRoot = path.join(cratesRoot, entry.name);
+    await readText(path.join(crateRoot, "Cargo.toml"));
+    for (const [name, expected] of canonical) {
+      const file = path.join(crateRoot, name);
+      const actual = await readText(file);
+      if (actual !== expected) {
+        const relative = path.relative(root, file).split(path.sep).join("/");
+        fail(`crate legal file drifted from root ${name}: ${relative}`);
+      }
+    }
   }
 }
 
@@ -513,6 +542,7 @@ async function main() {
   const packageText = await readText(path.join(root, "package.json"));
   const lockText = await readText(path.join(root, "package-lock.json"));
   validatePackage(parseJson(packageText, "package.json"), parseJson(lockText, "package-lock.json"));
+  await validateCrateLegalFiles(root);
   await validateShellScripts(root);
 }
 
