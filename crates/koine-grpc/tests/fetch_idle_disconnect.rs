@@ -15,9 +15,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use koine_application::ports::{DispatchError, Dispatcher, LeasedJob};
-use koine_domain::{JobId, LeaseId, QueueName, WorkerId};
+use koine_domain::{LeaseId, QueueName, WorkerId};
 use koine_grpc::{Deps, GrpcConfig, WorkerApi};
 use koine_proto::v1;
 use koine_proto::v1::worker_service_server::WorkerService as _;
@@ -52,11 +52,10 @@ impl<D: Dispatcher> Dispatcher for CountingDispatcher<D> {
         self.inner.extend_lease(lease, ttl)
     }
 
-    fn expired(
+    fn retire_next_expired_lease(
         &self,
-        now: DateTime<Utc>,
-    ) -> impl Future<Output = Result<Vec<JobId>, DispatchError>> + Send {
-        self.inner.expired(now)
+    ) -> impl Future<Output = Result<Option<koine_domain::JobId>, DispatchError>> + Send {
+        self.inner.retire_next_expired_lease()
     }
 }
 

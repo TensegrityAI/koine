@@ -1,6 +1,6 @@
-//! In-memory `Dispatcher`: the claim-and-lease composite of ADR 0011-b,
-//! atomic under the store's single mutex exactly as the Postgres adapter
-//! will be atomic under one transaction.
+//! In-memory `Dispatcher`: the claim-and-lease and lease-retirement composites
+//! of ADRs 0011-b and 0016, atomic under the store's single mutex exactly as
+//! the Postgres adapter is atomic under one transaction.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -95,6 +95,56 @@ impl<G: IdGenerator, C: Clock> InMemoryDispatcher<G, C> {
             })
             .map_err(DispatchError::from)
     }
+
+    fn retire_one(&self) -> Result<Option<JobId>, DispatchError> {
+        let result = self.store.locked(|inner| {
+            let now = self.clock.now();
+            let Some(job_id) = inner
+                .index
+                .iter()
+                .filter(|(_, entry)| {
+                    entry
+                        .lease
+                        .as_ref()
+                        .is_some_and(|lease| lease.expires_at <= now)
+                })
+                .map(|(job_id, _)| *job_id)
+                .min()
+            else {
+                return Ok(Ok(None));
+            };
+            let stream = inner
+                .streams
+                .get(&job_id)
+                .cloned()
+                .ok_or(EventStoreError::StreamNotFound(job_id))?;
+            let job = match Job::from_events(&stream) {
+                Ok(job) => job,
+                Err(error) => return Ok(Err(error)),
+            };
+            let events = match job.expire_lease(now, self.ids.jitter_seed()) {
+                Ok(events) => events,
+                Err(error) => return Ok(Err(error)),
+            };
+            let (correlation_id, causation_id, traceparent) =
+                koine_application::lineage_of(&stream);
+            let envelopes = wrap_events(
+                self.ids.as_ref(),
+                self.clock.as_ref(),
+                job_id,
+                job.version,
+                correlation_id,
+                causation_id,
+                traceparent,
+                events,
+            );
+            InMemoryEventStore::append_locked(inner, job_id, job.version, envelopes)?;
+            Ok(Ok(Some(job_id)))
+        });
+        result
+            .map_err(DispatchError::from)?
+            .map_err(DispatchError::from)
+    }
 }
 
 impl<G: IdGenerator, C: Clock> Dispatcher for InMemoryDispatcher<G, C> {
@@ -113,49 +163,36 @@ impl<G: IdGenerator, C: Clock> Dispatcher for InMemoryDispatcher<G, C> {
         lease: LeaseId,
         ttl: Duration,
     ) -> impl Future<Output = Result<bool, DispatchError>> + Send {
-        let now = self.clock.now();
-        let delta_result = chrono::TimeDelta::from_std(ttl);
-        let result = if let Ok(delta) = delta_result {
-            let deadline = now + delta;
-            self.store
-                .locked(|inner| {
-                    for entry in inner.index.values_mut() {
-                        if let Some(state) = entry.lease.as_mut()
-                            && state.lease == lease
-                        {
-                            if state.expires_at <= now {
-                                return Ok(false);
-                            }
-                            state.expires_at = deadline;
-                            return Ok(true);
-                        }
-                    }
-                    Ok(false)
-                })
-                .map_err(DispatchError::from)
-        } else {
-            Err(DispatchError::Backend("ttl out of range".into()))
-        };
-        async move { result }
-    }
-
-    fn expired(
-        &self,
-        now: DateTime<Utc>,
-    ) -> impl Future<Output = Result<Vec<JobId>, DispatchError>> + Send {
         let result = self
             .store
             .locked(|inner| {
-                let mut ids: Vec<JobId> = inner
-                    .index
-                    .iter()
-                    .filter(|(_, entry)| entry.lease.as_ref().is_some_and(|l| l.expires_at <= now))
-                    .map(|(id, _)| *id)
-                    .collect();
-                ids.sort();
-                Ok(ids)
+                let now = self.clock.now();
+                let Ok(delta) = chrono::TimeDelta::from_std(ttl) else {
+                    return Ok(Err(DispatchError::Backend("ttl out of range".into())));
+                };
+                let deadline = now + delta;
+                for entry in inner.index.values_mut() {
+                    if let Some(state) = entry.lease.as_mut()
+                        && state.lease == lease
+                    {
+                        if state.expires_at <= now {
+                            return Ok(Ok(false));
+                        }
+                        state.expires_at = deadline;
+                        return Ok(Ok(true));
+                    }
+                }
+                Ok(Ok(false))
             })
-            .map_err(DispatchError::from);
+            .map_err(DispatchError::from)
+            .and_then(std::convert::identity);
+        async move { result }
+    }
+
+    fn retire_next_expired_lease(
+        &self,
+    ) -> impl Future<Output = Result<Option<JobId>, DispatchError>> + Send {
+        let result = self.retire_one();
         async move { result }
     }
 }
@@ -317,8 +354,13 @@ mod tests {
             .expect("claim")
             .expect("job");
 
-        let now = koine_application::ports::Clock::now(f.clock.as_ref());
-        assert!(f.dispatcher.expired(now).await.expect("expired").is_empty());
+        assert_eq!(
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire"),
+            None
+        );
 
         f.clock.advance(Duration::from_secs(20));
         assert!(
@@ -330,10 +372,12 @@ mod tests {
         );
 
         f.clock.advance(Duration::from_secs(31));
-        let now = koine_application::ports::Clock::now(f.clock.as_ref());
         assert_eq!(
-            f.dispatcher.expired(now).await.expect("expired"),
-            vec![claimed.job_id]
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire"),
+            Some(claimed.job_id)
         );
         assert!(
             !f.dispatcher
@@ -341,6 +385,67 @@ mod tests {
                 .await
                 .expect("hb"),
             "expired lease refuses extension"
+        );
+    }
+
+    #[tokio::test]
+    async fn heartbeat_first_fences_retirement() {
+        let f = fixture();
+        let job = enqueue(&f, 0, None).await;
+        let leased = f
+            .dispatcher
+            .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+            .await
+            .expect("claim")
+            .expect("job");
+        f.clock.advance(Duration::from_secs(20));
+        assert!(
+            f.dispatcher
+                .extend_lease(leased.lease, Duration::from_secs(30))
+                .await
+                .expect("hb")
+        );
+        f.clock.advance(Duration::from_secs(11));
+        assert_eq!(
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire"),
+            None
+        );
+        assert_eq!(f.store.load(job).await.expect("load").len(), 2);
+    }
+
+    #[tokio::test]
+    async fn retirement_first_rejects_heartbeat_and_happens_once() {
+        let f = fixture();
+        enqueue(&f, 0, None).await;
+        let leased = f
+            .dispatcher
+            .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+            .await
+            .expect("claim")
+            .expect("job");
+        f.clock.advance(Duration::from_secs(31));
+        assert_eq!(
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire"),
+            Some(leased.job_id)
+        );
+        assert_eq!(
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire twice"),
+            None
+        );
+        assert!(
+            !f.dispatcher
+                .extend_lease(leased.lease, Duration::from_secs(30))
+                .await
+                .expect("hb")
         );
     }
 

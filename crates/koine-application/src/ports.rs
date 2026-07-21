@@ -1,11 +1,14 @@
 //! Driven ports (spec §2). The composite-operation contracts come from
-//! ADRs 0006 and 0011: adapters guarantee atomicity; use cases stay thin.
+//! ADRs 0006, 0011, and 0016: adapters guarantee atomicity; use cases stay
+//! thin.
 
 use std::future::Future;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use koine_domain::{CorrelationId, EventEnvelope, EventId, JobId, LeaseId, QueueName, WorkerId};
+use koine_domain::{
+    CorrelationId, DomainError, EventEnvelope, EventId, JobId, LeaseId, QueueName, WorkerId,
+};
 use serde_json::Value;
 use thiserror::Error;
 
@@ -34,6 +37,9 @@ pub enum DispatchError {
     /// A store operation inside the composite failed.
     #[error(transparent)]
     Store(#[from] EventStoreError),
+    /// Domain rejection while deriving a composite dispatch transition.
+    #[error(transparent)]
+    Domain(#[from] DomainError),
     /// Adapter/backend failure.
     #[error("backend: {0}")]
     Backend(String),
@@ -86,11 +92,13 @@ pub struct LeasedJob {
 
 /// Atomic claim plus ephemeral lease bookkeeping.
 ///
-/// Contract (ADR 0011-b/c): `lease_next` atomically selects the
+/// Contract (ADRs 0011-b and 0016): `lease_next` atomically selects the
 /// highest-priority eligible job (priority desc, then enqueue order,
 /// `not_before <= now`), produces `leased` via the domain aggregate, appends
 /// it, and updates the index — all one transaction. `extend_lease` touches
-/// only the ephemeral deadline; no event is written.
+/// only the ephemeral deadline; no event is written. Lease retirement selects
+/// and revalidates the deadline, derives domain events, appends them, and
+/// updates the index in one adapter transaction or critical section.
 pub trait Dispatcher: Send + Sync {
     /// Claims the next eligible job on `queue` for `worker`, or `None`.
     fn lease_next(
@@ -108,11 +116,11 @@ pub trait Dispatcher: Send + Sync {
         ttl: Duration,
     ) -> impl Future<Output = Result<bool, DispatchError>> + Send;
 
-    /// Jobs whose lease deadline has passed as of `now` (sweep input).
-    fn expired(
+    /// Atomically retires one currently expired lease through the domain and
+    /// records its events, or returns `None` when no expired grant is available.
+    fn retire_next_expired_lease(
         &self,
-        now: DateTime<Utc>,
-    ) -> impl Future<Output = Result<Vec<JobId>, DispatchError>> + Send;
+    ) -> impl Future<Output = Result<Option<JobId>, DispatchError>> + Send;
 }
 
 /// Errors a sink may return. A failed batch is rolled back and redelivered

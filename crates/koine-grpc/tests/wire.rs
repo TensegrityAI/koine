@@ -152,22 +152,10 @@ impl TestWorld {
             .collect()
     }
 
-    /// A `SweepExpiredLeases` use case constructed directly on this world's
-    /// store/dispatcher/ids/clock.
-    fn sweeper(
-        &self,
-    ) -> SweepExpiredLeases<
-        '_,
-        InMemoryEventStore,
-        InMemoryDispatcher<SeededIds, FixedClock>,
-        SeededIds,
-        FixedClock,
-    > {
+    /// A `SweepExpiredLeases` use case over this world's dispatcher.
+    fn sweeper(&self) -> SweepExpiredLeases<'_, InMemoryDispatcher<SeededIds, FixedClock>> {
         SweepExpiredLeases {
-            store: self.store.as_ref(),
             dispatcher: &self.deps.dispatcher,
-            ids: self.ids.as_ref(),
-            clock: self.clock.as_ref(),
         }
     }
 }

@@ -231,20 +231,9 @@ async fn cancel_removes_a_pending_job() {
     );
 }
 
-fn sweeper(
-    w: &World,
-) -> SweepExpiredLeases<
-    '_,
-    InMemoryEventStore,
-    InMemoryDispatcher<SeededIds, FixedClock>,
-    SeededIds,
-    FixedClock,
-> {
+fn sweeper(w: &World) -> SweepExpiredLeases<'_, InMemoryDispatcher<SeededIds, FixedClock>> {
     SweepExpiredLeases {
-        store: w.store.as_ref(),
         dispatcher: &w.dispatcher,
-        ids: w.ids.as_ref(),
-        clock: w.clock.as_ref(),
     }
 }
 
@@ -470,6 +459,8 @@ async fn sweep_surfaces_non_transition_domain_errors() {
         .expect_err("InvalidTtl must surface");
     assert!(matches!(
         err,
-        koine_application::use_cases::sweep::SweepError::Domain(_)
+        koine_application::use_cases::sweep::SweepError::Dispatch(
+            koine_application::DispatchError::Domain(_)
+        )
     ));
 }
