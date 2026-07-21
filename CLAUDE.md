@@ -1,9 +1,10 @@
 # CLAUDE.md — Koiné living context
 
-**Current phase: 2A complete — next: phase 2B (Python SDK, ring-4
-conformance, benchmarks)** (see design spec §6 for all phases).
+**Current phase:** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. (See design spec §6 for all phases.)
 
-Active plan: none — phase 2B plan not yet written (pending).
+Active plan:
+[`2026-07-21-koine-operational-closure.md`](docs/superpowers/plans/2026-07-21-koine-operational-closure.md),
+Task 5 complete; Task 6 is the remaining exit gate.
 
 ## Quick orientation
 
@@ -23,4 +24,6 @@ Active plan: none — phase 2B plan not yet written (pending).
 - 2026-07-17 — ROADMAP.md + epics for phases 1-5 committed. Next: phase 1 detailed implementation plan (starts with the event-schema ADR), then execution.
 - 2026-07-18 — Phase 1A complete: event-sourced domain core green on rings 1–2. Next: phase 1B plan (Postgres store, outbox, dispatch projection, ring 3).
 - 2026-07-18 — Phase 1B complete: Postgres store, outbox relay, ring 3, dev-loop. PHASE 1 COMPLETE. Next: phase 2 plan (TLA+ model first — epic item 1).
-- 2026-07-19 — Phase 2A complete: TLA+ lease-protocol model TLC-checked in CI (`tla` job); `koine.v1` wire contract (`koine-proto`); authenticated `gRPC` data-plane server (`koine-grpc` + `koine-server serve`) with `DispatchSignal`/`WorkerPresence` ports, Postgres `LISTEN`/`NOTIFY` wakeup, worker presence table; crash recovery proven over a real socket + real Postgres. Epic items 1–6 delivered; carryover-hardening ACs 1–3 closed (AC4 deferred to 2B/3). Next: phase 2B plan (Python SDK, ring-4 conformance suite, benchmarks, crates.io publication).
+- 2026-07-19 — Phase 2A implementation checkpoint: TLA+ lease-protocol model TLC-checked in CI (`tla` job); `koine.v1` wire contract (`koine-proto`); authenticated `gRPC` data-plane server (`koine-grpc` + `koine-server serve`) with `DispatchSignal`/`WorkerPresence` ports, Postgres `LISTEN`/`NOTIFY` wakeup, worker presence table; crash recovery proven over a real socket + real Postgres. Epic items 1–6 delivered. At this checkpoint carryover AC4 and zero-debt hardening were still open, so this was implementation completion rather than the operational exit gate.
+- 2026-07-21 — Atomic lease retirement and Postgres resource hardening closed: heartbeat and expiry now serialize on the live grant; one listener is shared across Fetch waits; the operational pool is bounded; presence latency is best-effort and bounded.
+- 2026-07-22 — Operational Tasks 1–5 complete: immutable executable inputs, the fail-closed 73-probe semantic supply-chain gate, vendored protobuf compilation, immutable Postgres consumers, centralized manifest edges, non-publishable crates, package-file boundaries, and public/lifecycle truth are reconciled. Task 6 remains blocked on fresh exit evidence and independent review.

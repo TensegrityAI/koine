@@ -7,7 +7,7 @@ job is the source of truth (ADR 0004): all state derives from an append-only
 event log, which makes traceability, replay, and repair-&-resume structural
 properties rather than features bolted on.
 
-**Status: phase 2A — phase 1 complete, data plane server delivered.** The
+**Status:** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. The
 workspace, boundaries, and governance below exist; `koine-domain`,
 `koine-application`, `koine-store-memory`, `koine-store-postgres`,
 `koine-proto`, `koine-grpc`, and `koine-server` now have real behavior (see
@@ -101,6 +101,11 @@ authorizing publication.
 - Worker auth v1: single shared bearer token, proxy-terminated TLS — ADR 0014
 - Worker presence is ephemeral infrastructure state, not an event-sourced
   aggregate — ADR 0015
+- Atomic lease retirement and heartbeat renewal serialize on the live grant;
+  recovery liveness in the formal model assumes finitely many renewals — ADR
+  0016
+- Hermetic protobuf compilation and immutable repository-owned executable
+  inputs — ADR 0017
 - Full index: [docs/adr/INDEX.md](../adr/INDEX.md)
 
 ## Boundaries with the outside
@@ -109,6 +114,11 @@ authorizing publication.
 - Repository-owned Compose and testcontainers consumers use the reviewed
   Postgres 17 image digest; the supply-chain gate rejects tag-only and
   wrong-digest substitutions (ADR 0017).
+- Rust protobuf builds select the exact vendored compiler without consulting
+  system `protoc`. The semantic supply-chain gate currently exercises 73
+  repository-owned pass/fail probes covering executable identities, parser and
+  filesystem failures, container consumers, and crate legal-file integrity
+  (ADR 0017).
 - Workers in any language speak the `koine-proto` contract, enforced today
   by a real server (`koine-grpc` + `koine-server serve`); a ring-4
   conformance suite against a generated SDK (phase 2B) is the polyglot

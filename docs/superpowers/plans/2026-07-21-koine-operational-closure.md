@@ -575,3 +575,26 @@ Each helper must contain exactly one executable token chain equivalent to
 retains missing, duplicate, tag-only, and wrong-digest mutations and adds the
 two reviewed bypasses: the approved chain only in a nested comment, and only in
 an unrelated raw string, while runtime code calls `.start()` without the pin.
+
+## 2026-07-22 applicable Operational Task 5 truth amendment
+
+Task 5 reconciles the repository against the implemented Tasks 2–4 and the two
+closed hardening plans; it does not advance the phase. Until Task 6 completes,
+the exact live state is: `phase 2A implementation complete; zero-debt hardening active; phase 2B blocked`.
+
+The phase-0 CI-pinning and manifest-cleanup items may close in Task 5 because
+their original acceptance criteria are fully evidenced. Their done records
+retain the historical opening requirements, map them to checked current ACs,
+and record the applicable full-SHA policy/gate, byte-identical dependency
+projections, manifest scans, seven package-file inspections, CI evidence,
+independent reviews, and `Faithful` statements. Their closure does not check
+the parent operational item's ACs or authorize publication.
+
+The current supply-chain evidence is the 73-probe semantic suite established by
+the Rust-helper lexer amendment above. Earlier counts and hashes in execution
+reports remain historical only when explicitly labeled superseded; public,
+living, epic, architecture, formal, and lifecycle truth does not repeat them.
+Formal CI documentation names the applicable full-SHA-pinned setup-java v5.6.0
+and exact Temurin 21.0.11+10 inputs. Task 6 remains responsible for fresh
+formal/CI/Postgres/gRPC/product evidence and the independent parent closeout
+review.

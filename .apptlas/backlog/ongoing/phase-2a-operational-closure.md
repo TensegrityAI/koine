@@ -46,3 +46,29 @@
   unchecked until independent review and parent-item closure.
 
 ## Spec-fidelity statement (filled at close)
+
+## 2026-07-22 Task 5 truth-reconciliation amendment
+
+The earlier evidence paragraphs are preparatory snapshots from their
+individual cuts. Their acceptance checkboxes correctly remain open at parent
+scope, but their references to pending independent review are now historical:
+Operational Tasks 2, 3, and 4 each passed their recorded independent reviews.
+
+- Public, living, epic, environment, architecture, and formal documentation
+  now use the live state: phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. Phase-2B scope remains explicit and
+  unimplemented.
+- The two phase-0 legacy findings are closed at
+  [ci-supply-chain-pinning.md](../done/ci-supply-chain-pinning.md) and
+  [manifest-cleanup-workspace-deps.md](../done/manifest-cleanup-workspace-deps.md).
+  Each retains its historical opening requirement, checks template-complete
+  current ACs, records exact implementation/package evidence, and states
+  `Faithful`.
+- The current semantic supply-chain suite has 73 probes. Older counts and
+  hashes remain only where explicitly labeled historical/superseded; current
+  identities remain canonical in the Operational Task 2 and Task 4 reports.
+- Task 5 evidence is recorded in
+  [the truth-reconciliation report](../../../.superpowers/sdd/operational-task-5-report.md).
+
+AC1–AC6 above remain unchecked and this item remains `ongoing`. Task 5 does
+not run or claim Task 6's fresh product exit gate, independent parent review,
+or phase-unblock decision.

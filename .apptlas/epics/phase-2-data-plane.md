@@ -1,8 +1,7 @@
 # Epic: Phase 2 — Data plane
 
-- **State:** in progress — phase 2A done (items 1–6 delivered); phase 2B next
-  (items 7–12: Python SDK, conformance suite, scripted crash demo, benchmarks,
-  crates.io publication, `tests/support` dedup)
+- **State:** in progress — phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. Items 1–6 and the phase-2A wiki evidence
+  are delivered; items 7–11 plus `tests/support` dedup remain phase 2B.
 - **Implements:** design spec §2 (data plane, contract), §3 (delivery), §6 phase 2
 - **Exit criteria:** a real Python worker processes jobs with demonstrable
   crash recovery; the conformance suite passes against the Python SDK; TLC
@@ -15,14 +14,14 @@
 
 1. **DONE (2A)** — **TLA+ model of the lease/delivery protocol** —
    `docs/formal/lease_protocol.tla`/`.cfg`, TLC-checked in CI (the `tla`
-   job) and via `make tla`. Delivered with 7 invariants (`TypeOK`,
+   job) and via `make tla`. Delivered with 8 invariants (`TypeOK`,
    `NoDualLease`, `FreshLeases`, `AttemptCapped`, `LeaseFencingOK`,
-   `NoLeaseWhenIdle`, `NonRetryableAlwaysParks`) plus the `EventuallySettled`
-   liveness property — `LeaseFencingOK`/`NoLeaseWhenIdle`/
-   `NonRetryableAlwaysParks` strengthen this item's original safety-property
-   sketch (ghost-variable fencing, quiescence, and the retryable/
-   non-retryable split were added during the fix round, not scoped in this
-   text originally). See `docs/formal/README.md`.
+   `NoLeaseWhenIdle`, `NonRetryableAlwaysParks`,
+   `HeartbeatExpiryFence`) plus the conditional `EventuallySettled` liveness
+   property. The model covers time, deadlines, lease identity, heartbeat, and
+   the two heartbeat/retirement serialization outcomes. Settlement assumes a
+   finite heartbeat allowance; production workers may renew forever. See
+   `docs/formal/README.md` and ADR 0016.
 2. **DONE (2A)** — **`koine-proto` v1** — package `koine.v1`, one file
    `worker.proto`; `Fetch` (server-streaming) + unary `Start`/`Succeed`/
    `Fail`/`Heartbeat`; ADR 0013 covers versioning & compatibility (additive-
@@ -40,6 +39,11 @@
    `NOTIFY`, in-transaction on the append that lands a job back in
    `Pending`) plus an `idle_poll` fallback (default 1s, `koine-server
    serve`'s `KOINE_IDLE_POLL_MS`); proven by `fetch_wakes_on_late_enqueue`.
+   Every `PgSignal` clone shares one listener hub and broadcast fan-out;
+   dropping an intermediate clone retains it, while dropping the last clone
+   aborts the receive task and releases the dedicated listener connection.
+   Idle Fetch waits do not occupy the `N`-connection operational pool, so the
+   server budgets exactly `N + 1` Postgres clients.
    The fallback interval is a chosen default, not a benchmarked one —
    benchmarking is item 10, deferred to 2B.
 5. **DONE (2A)** — **Worker auth v1** — ADR 0014: single shared bearer
@@ -58,8 +62,10 @@
    crash → sweep → retry → success arc as a test, but this item's "scripted
    demo… against the SDK" needs the SDK (item 7), which doesn't exist yet.
 10. **→ 2B** — **Benchmarks (baseline)** — not started.
-11. **→ 2B (or later)** — **crates.io name reservation** — not started;
-    still blocked on `manifest-cleanup-workspace-deps`.
+11. **→ 2B (or later)** — **crates.io name reservation/publication
+    decision** — not started. Manifest cleanup and package-file inspection are
+    complete, but every crate remains deliberately `publish = false`; Task 6
+    must close before phase-2B publication planning starts.
 12. **DONE (2A)** — **Wiki pages** — `koine-proto.md`, `koine-grpc.md`
     added; `koine-application`/`koine-store-memory`/`koine-store-postgres`/
     `koine-server`/`overview`/`README` updated for the ports, adapters, and
@@ -68,7 +74,10 @@
     covers the formal-model content, and the per-crate pages plus
     `overview.md`'s data-plane section cover the data-plane content, so a
     dedicated `data-plane.md` was judged redundant rather than omitted by
-    oversight.
+    oversight. The current pages also record ADR 0016's atomic retirement,
+    shared-listener lifecycle, the exact `N + 1` pool budget, best-effort
+    presence latency, ADR 0017's vendored protobuf compiler, immutable
+    Postgres consumers, and the semantic supply-chain gate.
 
 ## Dependencies
 

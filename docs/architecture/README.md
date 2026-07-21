@@ -6,6 +6,8 @@ Governed by the
 every page is updated in the same PR as the code it describes (Definition of
 Done item 4), so this wiki is trustworthy by construction, not by discipline.
 
+Current state: phase 2A implementation complete; zero-debt hardening active; phase 2B blocked.
+
 ## Pages
 
 | Page | Covers | Status |

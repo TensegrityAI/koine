@@ -11,3 +11,11 @@
   review; 2 adjudicated fix rounds (gitleaks OSS CLI swap, merge/revert gate exemption);
   final whole-branch review APPROVED with pre-merge fix commit.
 - **Follow-ups opened:** `todo/manifest-cleanup-workspace-deps.md`, `todo/ci-supply-chain-pinning.md`.
+
+## 2026-07-22 follow-up closure amendment
+
+The line above is the historical phase-0 closeout record. Both follow-ups are
+now closed with checked acceptance evidence and faithful spec statements:
+
+- [Centralize internal deps and clean manifest descriptions](manifest-cleanup-workspace-deps.md)
+- [Decide CI action pinning and typos version policy](ci-supply-chain-pinning.md)

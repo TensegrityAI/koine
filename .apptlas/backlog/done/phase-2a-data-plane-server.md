@@ -313,3 +313,19 @@ fan-out, and the size-one/32-waiter pressure proof. `PgPresence` skips a
 saturated pool immediately and bounds an acquired write to 100 ms. The former
 `→ 2B/3` disposition was removed; phase 3 still requires a capacity review
 before adding relay or sink concurrency to the operational pool.
+
+## 2026-07-22 operational-truth amendment
+
+AC1's `actions/setup-java@v4`, system-`protoc`, seven-invariant, and
+611-generated/184-distinct-state details above are the historical evidence at
+this item's original closeout. They are not the current repository gate.
+
+The applicable model now checks eight invariants, including
+`HeartbeatExpiryFence`, plus conditional `EventuallySettled`; the current
+bounded run generates 74,079 states, finds 18,598 distinct states, and reaches
+depth 24. CI uses the full-SHA-pinned setup-java v5.6.0 action with exact
+Temurin 21.0.11+10. Rust protobuf builds select exact
+`protoc-bin-vendored` 3.2.0 and require no system compiler. The current
+semantic supply-chain suite has 73 probes. ADR 0016, ADR 0017,
+`docs/formal/README.md`, and the operational Task 2–4 reports own the current
+details; Task 6 remains responsible for fresh parent closeout evidence.
