@@ -88,7 +88,8 @@
   columns, commit `ecb1f5b`), AC3 (`unused-deps` CI job + `make machete`,
   commit `0093d07`) — all three closed on this branch; AC4 (pool-size knob)
   stays open, moved to 2B/3 per its own text, the item itself remains in
-  `todo/`.
+  `todo/`. **Historical at this record's original closeout; superseded by the
+  2026-07-21 resource-hardening amendment below.**
 
 ## Dependencies
 
@@ -211,7 +212,9 @@ the honest execution history below.
   mentioned "checkpoints".)
 - **Carryover AC4 (pool-size knob) not closed this phase** — out of 2A's
   scope per the carryover item's own text; `phase-2-carryover-hardening.md`
-  stays in `todo/` with AC4 open, moved to 2B/3.
+  stays in `todo/` with AC4 open, moved to 2B/3. **Historical at this record's
+  original closeout; superseded by the 2026-07-21 resource-hardening amendment
+  below.**
 - Epic item 9 (scripted crash-recovery demo) is only partially represented:
   `crash_recovery_over_the_wire` proves the exact arc as an automated test
   over a real socket and real Postgres, but the epic's original "kill the
@@ -295,3 +298,18 @@ record):**
 No spec statement is contradicted; every divergence above is either an
 ADR-recorded decision, a disposition recorded at the point it was made, or
 a bug caught and corrected before this item closed.
+
+## 2026-07-21 resource-hardening amendment
+
+This append-only amendment supersedes this record's historical AC4 disposition;
+it does not rewrite the original closeout evidence. The dedicated resource
+closure is recorded in [phase-2a-postgres-resource-safety.md](phase-2a-postgres-resource-safety.md)
+and [phase-2-carryover-hardening.md](phase-2-carryover-hardening.md).
+
+Carryover AC4 is closed. `PoolConfig` and `pool_options_are_honored` prove
+the explicit non-zero operational-pool configuration; the resource record
+documents the exact `N + 1` process budget, one shared dedicated listener with
+fan-out, and the size-one/32-waiter pressure proof. `PgPresence` skips a
+saturated pool immediately and bounds an acquired write to 100 ms. The former
+`→ 2B/3` disposition was removed; phase 3 still requires a capacity review
+before adding relay or sink concurrency to the operational pool.
