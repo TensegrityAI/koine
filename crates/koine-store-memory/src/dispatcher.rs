@@ -450,6 +450,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn retires_lowest_expired_job_id_first() {
+        let f = fixture();
+        let left = enqueue(&f, 0, None).await;
+        let right = enqueue(&f, 0, None).await;
+        let expected_first = std::cmp::min(left, right);
+        let expected_second = std::cmp::max(left, right);
+
+        for _ in 0..2 {
+            f.dispatcher
+                .lease_next(&f.queue, &f.worker, Duration::from_secs(30))
+                .await
+                .expect("claim")
+                .expect("job");
+        }
+        f.clock.advance(Duration::from_secs(31));
+
+        assert_eq!(
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire first"),
+            Some(expected_first)
+        );
+        assert_eq!(
+            f.dispatcher
+                .retire_next_expired_lease()
+                .await
+                .expect("retire second"),
+            Some(expected_second)
+        );
+    }
+
+    #[tokio::test]
     async fn extend_lease_rejects_unrepresentable_ttl() {
         let f = fixture();
         enqueue(&f, 0, None).await;
