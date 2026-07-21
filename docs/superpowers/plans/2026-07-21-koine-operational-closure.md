@@ -559,3 +559,19 @@ being followed, and a missing or extra crate fails before all eleven regular
 `Cargo.toml`, `LICENSE`, and `NOTICE` files are checked. The expanded suite has
 71 probes, including an exact historical `postgres:17` Compose mutation and
 separate tag-only and wrong-digest mutations for both Rust consumers.
+
+## 2026-07-22 applicable Rust-helper lexer review amendment
+
+A second review found that source regexes could mistake an approved-looking
+chain in a comment or unrelated string for the executable testcontainers
+consumer. The applicable checker now uses a bounded, fail-closed Rust lexer for
+the two versioned helpers. It tokenizes identifiers, punctuation, numbers, and
+normal/raw strings; ignores line and nested block comments; and rejects
+unsupported or unterminated lexical forms rather than guessing.
+
+Each helper must contain exactly one executable token chain equivalent to
+`Postgres::default().with_tag(EXACT_STRING).start(`, and every executable
+`Postgres::default()` occurrence must belong to that chain. The 73-probe suite
+retains missing, duplicate, tag-only, and wrong-digest mutations and adds the
+two reviewed bypasses: the approved chain only in a nested comment, and only in
+an unrelated raw string, while runtime code calls `.start()` without the pin.
