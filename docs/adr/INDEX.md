@@ -12,8 +12,10 @@
 | [0008](0008-at-least-once-leases.md) | At-least-once delivery with leases | accepted | 2026-07-16 |
 | [0009](0009-dashboard-vite-react-embedded.md) | Dashboard: Vite+React SPA, embedded | accepted | 2026-07-16 |
 | [0010](0010-event-encoding-and-identity.md) | Event encoding and identity | accepted | 2026-07-18 |
-| [0011](0011-dispatch-atomicity-and-lease-ephemera.md) | Dispatch atomicity and lease ephemera | accepted | 2026-07-18 |
+| [0011](0011-dispatch-atomicity-and-lease-ephemera.md) | Dispatch atomicity and lease ephemera | accepted; (c) superseded by 0016 | 2026-07-18 |
 | [0012](0012-postgres-store-mechanics.md) | Postgres store mechanics | accepted | 2026-07-18 |
 | [0013](0013-wire-contract-v1.md) | Wire contract v1 | accepted | 2026-07-19 |
 | [0014](0014-worker-auth-v1.md) | Worker auth v1 | accepted | 2026-07-19 |
 | [0015](0015-worker-presence-ephemeral.md) | Worker presence as ephemeral state | accepted | 2026-07-19 |
+| [0016](0016-atomic-lease-retirement-heartbeat-fencing.md) | Atomic lease retirement and heartbeat fencing | accepted | 2026-07-21 |
+| [0017](0017-hermetic-protobuf-ci-artifact-pinning.md) | Hermetic protobuf compilation and CI artifact pinning | accepted | 2026-07-21 |

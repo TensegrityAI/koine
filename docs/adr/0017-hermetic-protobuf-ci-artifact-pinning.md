@@ -1,6 +1,6 @@
 # 0017 — Hermetic protobuf compilation and CI artifact pinning
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-07-21
 - **Context:** Phase-2A builds run `protoc` from a floating Ubuntu package,
   GitHub Actions use mutable major tags, TLA+ downloads a `latest` jar without

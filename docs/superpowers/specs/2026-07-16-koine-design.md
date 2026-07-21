@@ -4,6 +4,10 @@
 - **Authors:** Marcos Saez (Kael) & Claude
 - **Status:** Approved design, pending implementation plan
 - **Supersedes:** the 2025 NEXUS draft and PoC (now in `_archive/`)
+- **Amended:** 2026-07-21 by the approved
+  [phase-2A zero-debt hardening design](2026-07-21-koine-phase-2a-zero-debt-hardening-design.md),
+  ADR-0016, and ADR-0017. Those records refine §3 delivery semantics, §4 CI
+  and testing, and the phase-2 closure gate in §6.
 
 ---
 

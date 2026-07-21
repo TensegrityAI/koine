@@ -1,6 +1,6 @@
 # 0011 — Dispatch atomicity and lease ephemera
 
-- **Status:** accepted
+- **Status:** accepted — decision (c) superseded by ADR-0016
 - **Date:** 2026-07-18
 - **Context:** ADR 0006 makes the dispatch projection transactional with the
   event append. Phase 1 must fix *which component guarantees* the two
@@ -34,3 +34,10 @@
   (crash between = claimed-but-unrecorded limbo); `LeaseExtended` events
   (heartbeat-rate log spam, contradicts spec §3); merging Dispatcher into
   EventStore (one god-port, harder to keep honest).
+
+## 2026-07-21 clarification
+
+ADR-0016 supersedes only decision (c)'s split expiry mechanism. Lease
+extension remains ephemeral, but expiry discovery and the later event append
+are replaced by one atomic dispatcher operation. Decisions (a) and (b) remain
+accepted without modification.

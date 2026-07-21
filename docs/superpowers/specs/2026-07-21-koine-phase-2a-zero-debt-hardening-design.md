@@ -2,11 +2,10 @@
 
 - **Date:** 2026-07-21
 - **Authors:** Marcos Saez (Kael) & Codex
-- **Status:** Proposed — design sections approved in conversation; written
-  maintainer review pending
+- **Status:** Approved by the maintainer on 2026-07-21
 - **Amends:** the delivery semantics, CI, testing, and phase-gate details in
   [the original Koiné design](2026-07-16-koine-design.md)
-- **Decision records:** proposed ADR-0016 and ADR-0017
+- **Decision records:** accepted ADR-0016 and ADR-0017
 
 ---
 

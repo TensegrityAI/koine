@@ -1,6 +1,6 @@
 # 0016 — Atomic lease retirement and heartbeat fencing
 
-- **Status:** proposed
+- **Status:** accepted
 - **Date:** 2026-07-21
 - **Context:** ADR-0008 defines at-least-once delivery with ephemeral heartbeat
   extensions and event-sourced lease expiry. ADR-0011(c) assigns expiry
