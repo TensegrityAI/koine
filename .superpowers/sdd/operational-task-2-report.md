@@ -2,13 +2,13 @@
 
 ## Current status
 
-Operational Task 2 now has a fail-closed semantic supply-chain gate in commit
-`348625d1731c29556d6432be5edfa449bd59d8a0`. The Bash entrypoint requires the
+Operational Task 2 has a fail-closed semantic supply-chain gate in commits
+`348625d1731c29556d6432be5edfa449bd59d8a0` and
+`0c7f28e1a9e5756f61d9440816031c0335b565c0`. The Bash entrypoint requires the
 reviewed Node runtime and installed parser, while the ESM checker enumerates
-workflows directly from the filesystem and parses policy-bearing YAML and JSON
-before enforcing exact executable identities. Its repository-owned suite has
-44 passing probes, including the reported inline, ignored-file, structural,
-parser, lockfile, command-wrapper, image, runner, and setup-node bypass cases.
+workflows and repository-owned shell scripts directly from the filesystem and
+parses policy-bearing YAML and JSON before enforcing exact executable
+identities. Its repository-owned suite currently has 51 passing probes.
 
 The parent operational-closure item remains ongoing. This cut supplies current
 evidence for AC1 but does not mark it complete, close the item, or claim the
@@ -20,7 +20,7 @@ changed.
 
 ## Current verification
 
-- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 44 mutation
+- `make supply-chain` exits 0 after `npm ci --ignore-scripts`; all 51 mutation
   and fail-closed probes pass.
 - `npm audit --json` reports 0 vulnerabilities at every severity.
 - `make md` installs the exact lock, runs `markdownlint-cli2` 0.23.1, and
@@ -42,24 +42,27 @@ Current verification identities:
 - Bash wrapper SHA-256:
   `70aec3c4af9b6b4796b1fa51443066e6c1306b7ab44057af126ae59628a42e42`
 - ESM checker SHA-256:
-  `6cabe356b95bbcb172e5680c3b3e52ba18595e535dd1e0cd316c38d00920edbb`
+  `7091b1de1e80d731b3e81cf28c50feacfbadf804935371459dbaa81e946bac71`
 - Mutation suite SHA-256:
-  `4700d1fa85ddff536884354a477084efe5749723761b39dc2e69deac187fe88d`
+  `7670add0c4098ab22a2208e0ddb40630f17437b5cec65b3ef012b43a52a6c9ff`
 - Direct `js-yaml` integrity:
   `sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==`
 
 ## Review RED and GREEN
 
-RED: the pre-review textual gate accepted the `second_inline_uses` mutation,
-which placed a second `uses` entry on a line whose first entry was approved.
-That demonstrated that line scanning could miss valid YAML structure even when
-the allowlist itself was exact.
+Initial review RED: the pre-semantic textual gate accepted an inline-action
+bypass, establishing that line scanning could miss valid YAML structure. The
+fixture now contains two real flow-sequence actions on one line—the first exact
+and the second floating—and fails with the exact unapproved-action diagnostic.
 
-GREEN: the replacement checker semantically loads every workflow and compares
-all discovered actions with a deliberately narrow, unquoted block-source form.
-The original bypass and the other 43 probes now pass. Malformed YAML/JSON,
-duplicate JSON keys, missing files, ignored workflows, missing Node/parser,
-and parser import failures all produce non-zero results.
+Final I1 RED: before commit `0c7f28e`, the checker accepted six repository
+fixtures covering incomplete and wrapped Cargo installs, setup-java `latest`,
+`sh -c` download indirection, a download in `scripts/check-commit-message.sh`,
+and a duplicate `tla` target. It also accepted a shell-scanner symlink failure.
+
+GREEN: all 51 current probes pass. Malformed YAML/JSON, duplicate JSON keys,
+missing files, ignored workflows, scanner symlinks, missing Node/parser, and
+parser import failures all produce non-zero results.
 
 ## Enforced policy surface
 
@@ -73,11 +76,18 @@ and parser import failures all produce non-zero results.
   immutable digest except the one exact, temporary `postgres:17` exception.
 - Setup-node is allowed only in the canonical Markdownlint and supply-chain
   jobs, with exact Node, cache, step-order, and npm-install associations.
+- Setup-java is allowed only in the canonical TLA job, with exact Temurin
+  distribution, Java `21.0.11+10`, and step ordering.
 - TLA+ version, URL, digest, download recipe, pre-execution checksum, and Java
   invocation are exact. Gitleaks version 8.24.3, URL, digest, extraction, and
   execution are exact.
+- The only allowed Cargo installation is exact cargo-machete 0.9.2 with
+  `--locked`. Validated Makefile targets are unique.
+- All repository-owned `.sh`, `.bash`, and `.zsh` scripts are enumerated from
+  the filesystem outside the declared internal/generated/fixture exclusions.
+  Shell `-c` indirection is rejected without interpreting nested code.
 - All other executable `curl`, `wget`, `npm`, and `npx` command forms are
-  rejected across workflows, the Makefile, and repository-owned shell scripts,
+  rejected across workflows, the Makefile, and enumerated shell scripts,
   including environment, `command`, substitution, and chain wrappers.
 - Package and lock semantics enforce exact direct pins, registry URLs,
   SHA-512 integrity, Node/npm contracts, and the absence of lifecycle scripts.
@@ -95,8 +105,9 @@ Commit `bced29b` was the initial Operational Task 2 implementation. Its textual
 gate, 0.22.1 Markdownlint graph, reported probe count, hashes, and vulnerability
 finding are historical evidence only and are superseded by the current status,
 identities, semantic checker, audit result, and checksums above. Later review
-amendments that described 23 probes are likewise superseded by the current
-44-probe suite. They are not presented as current verification.
+amendments and reports that described 23 or 44 probes, and their associated
+checker/test hashes, are likewise superseded by the current 51-probe suite and
+current hashes above. They are not presented as current verification.
 
 ## Remaining concerns and owners
 

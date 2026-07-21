@@ -13,7 +13,9 @@ pass `make supply-chain` before merge.
   from the SHA and release-comment form.
 - Downloaded executables use a versioned URL and a checked-in SHA-256 digest.
   The digest is checked both when downloading and before every execution.
-- Cargo-installed tools use an exact version with `--locked`.
+- The only approved Cargo installation is exactly
+  `cargo install cargo-machete --version 0.9.2 --locked`; wrappers, omitted
+  flags, and other tools fail the gate.
 - Node tools are exact direct dev dependencies in `package.json`: `js-yaml`
   `4.3.0` supplies the policy parser and `markdownlint-cli2` `0.23.1` supplies
   Markdownlint. They are installed from the committed `package-lock.json`
@@ -34,10 +36,14 @@ JSON keys, malformed input, filesystem failures, parser import failures, and
 unsupported action source forms all fail closed.
 
 The checker enforces the exact action/comment allowlist, immutable runner and
-image forms, setup-node job association and ordering, exact Node/npm/package
-identities, exact TLA+ and gitleaks download/checksum/execution sequences, and
-the absence of all other `curl`, `wget`, `npm`, or `npx` commands in reviewed
-workflow, Makefile, and repository-owned shell surfaces. Its executable
+image forms, setup-node and setup-java job associations and inputs, exact
+Node/npm/package identities, exact TLA+ and gitleaks
+download/checksum/execution sequences, and unique validated Makefile targets.
+It enumerates repository-owned shell scripts from the filesystem while
+excluding only declared generated, internal, and fixture trees. It rejects
+shell `-c` indirection instead of attempting to interpret nested code, and
+rejects every non-allowlisted `curl`, `wget`, `npm`, `npx`, or `cargo install`
+command across workflows, the Makefile, and those scripts. Its executable
 mutation suite uses repository-owned fixtures and runs as part of
 `make supply-chain`.
 
