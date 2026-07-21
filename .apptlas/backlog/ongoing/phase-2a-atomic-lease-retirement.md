@@ -1,6 +1,6 @@
 # Make lease retirement atomic with heartbeat renewal
 
-- **State:** todo
+- **State:** ongoing
 - **Origin:** phase-2A zero-debt hardening design
 - **Epic:** ../epics/phase-2-data-plane.md
 
