@@ -2,6 +2,7 @@ _archive/
 .superpowers/
 .worktrees/
 target/
+node_modules/
 **/*.rs.bk
 .env
 docs/formal/.tools/
