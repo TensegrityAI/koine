@@ -5,8 +5,9 @@ protocol for **one job**. It mirrors `koine-domain`'s `Job` state machine
 (`crates/koine-domain/src/job.rs` transition table): lease identity, expiry,
 heartbeat renewal, explicit time/deadlines, late acks, the attempt cap, and the
 retryable/non-retryable fail split.
-Multi-job/queue ordering is out of scope — that's covered by the
-ring-3/ring-4 tests, not this model.
+Multi-job/queue ordering is out of scope. Current ring-3 Postgres/gRPC tests
+cover adapter concurrency and multi-job behavior; the ring-4 SDK conformance
+suite is planned for phase 2B and does not exist today.
 It is the executable protocol evidence for
 [ADR 0016](../adr/0016-atomic-lease-retirement-heartbeat-fencing.md); the ADR
 owns the rationale while this page records the checked model and its bounds.

@@ -82,13 +82,21 @@
 ## Dependencies
 
 - Phase 1 complete (use cases + stores are what gRPC adapts).
-- TLA+ toolchain (TLC) available locally/CI — decide CI integration scope
-  (running TLC in CI vs on-demand) via ADR or plan decision.
+- **Resolved 2026-07-21:** TLC runs in the dedicated pinned `tla` CI job and
+  locally through `make tla`. The Make target downloads TLA+ tools 1.7.4 from
+  its versioned URL, checks SHA-256
+  `936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88`
+  after download and again before execution, then runs TLC. CI uses setup-java
+  v5.6.0 pinned at
+  `03ad4de0992f5dab5e18fcb136590ce7c4a0ac95` with exact Temurin 21.0.11+10.
+  Current evidence: 74,079 generated states, 18,598 distinct states, depth 24,
+  no error.
 
 ## Risks
 
-- Streaming gRPC + lease lifecycle has subtle cancellation paths — the TLA+
-  model and conformance suite exist precisely to cage this.
+- Streaming gRPC + lease lifecycle has subtle cancellation paths. The current
+  TLA+ model and ring-3 transport/store tests cage phase-2A behavior; the
+  planned phase-2B ring-4 suite will extend that evidence to SDK conformance.
 - The model's subject matter (lease/expiry/late-ack) is partially implemented
   in phase 1 — a TLC counterexample here back-propagates as a phase-1
   fidelity finding, exactly like phase 5's schema clause. Mitigation: draft
@@ -98,5 +106,7 @@
 
 ## Verification strategy
 
-TLC on the model; ring 3 for adapter internals; ring 4 conformance as the
-contract seal; scripted crash demo as product exercise.
+Current phase-2A verification is TLC on the model plus ring 3 for adapter,
+real-transport, and real-Postgres behavior. Planned phase 2B adds ring-4 SDK
+conformance as the contract seal and the scripted SDK crash demo as the product
+exercise; neither exists today.

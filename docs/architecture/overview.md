@@ -4,8 +4,8 @@
 
 Koiné is an event-sourced, language-agnostic job broker. The history of every
 job is the source of truth (ADR 0004): all state derives from an append-only
-event log, which makes traceability, replay, and repair-&-resume structural
-properties rather than features bolted on.
+event log. That foundation provides traceability and replay today and supports
+future phase-5 repair/resume; repair/resume is not implemented in phase 2A.
 
 **Status:** phase 2A implementation complete; zero-debt hardening active; phase 2B blocked. The
 workspace, boundaries, and governance below exist; `koine-domain`,

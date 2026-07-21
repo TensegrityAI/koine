@@ -1,6 +1,18 @@
 # Operational Task 3 Report
 
-## Current status
+## Current review status — 2026-07-22
+
+Independent slice review is complete. Exact verdict: **Spec: Faithful.
+Quality: Approved — 0 findings.** Durable evidence is recorded in the parent
+operational item's
+[Slice review evidence](../../.apptlas/backlog/ongoing/phase-2a-operational-closure.md#slice-review-evidence-2026-07-22).
+The parent remains `ongoing`, and AC2 remains unchecked until Task 6.
+
+The pending-review statements in the implementation snapshot and self-review
+below are historical pre-review evidence and are superseded by this dated
+verdict.
+
+## Implementation snapshot before review (historical)
 
 `koine-proto` now selects the executable from exact build dependency
 `protoc-bin-vendored = "=3.2.0"` and passes it directly to
@@ -118,4 +130,5 @@ or environment change. No unrelated store change is included in this cut.
   package install, or cargo-machete exception was added.
 - The diff is limited to the implementation, lock graph, architecture truth,
   lifecycle evidence, and this report.
-- Independent spec-compliance and quality verdicts remain pending.
+- Independent spec-compliance and quality verdicts remain pending. **Historical
+  pre-review statement; superseded by the 2026-07-22 verdict above.**

@@ -48,7 +48,8 @@ The legitimate phase-2B scope remains:
 2. **Model before protocol implementation (TLA+ first in 2):** the bugs that
    kill brokers live in interleavings (crash between lease and ack, heartbeat
    against expiry, late ack after expiry). The model is checked before and
-   alongside implementation and becomes the conformance suite's oracle.
+   alongside implementation; in phase 2B it will become the future conformance
+   suite's oracle.
 3. **Wire before UI (2 → 3):** the dashboard and CLI consume the control plane;
    the control plane serves data the core already produces. Each layer
    consumes a proven layer.

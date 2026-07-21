@@ -7,7 +7,8 @@
    each action models one database transaction (ADR 0011/0012) — the
    SKIP LOCKED claim is atomic BY CONSTRUCTION here; the implementation's
    obligation is exactly that atomicity. Multi-job/queue ordering is out of
-   scope (covered by ring-3/ring-4 tests).
+   scope: ring-3 tests cover current adapter concurrency; phase-2B ring-4
+   conformance will cover the future SDK contract.
 
    Fix round 1 (review findings on this task): the original invariant set
    had no lease-fencing teeth (a weakened ack guard or a broken Expire

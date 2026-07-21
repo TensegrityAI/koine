@@ -5,7 +5,7 @@
   use cases against both stores; dispatch projection replays from zero
   (tests/replay.rs).
 - **Implements:** design spec §3 (event model, delivery semantics, hot path), §6 phase 1
-- **Exit criteria:** test rings 1–3 green (ring 4 arrives with phase 2);
+- **Exit criteria:** test rings 1–3 green (ring 4 remains planned for phase 2B);
   enqueue→lease→ack/fail→retry→park works through use cases against both
   stores; every projection replays from event zero to an identical state.
 

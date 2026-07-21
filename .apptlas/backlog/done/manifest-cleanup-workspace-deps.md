@@ -73,9 +73,18 @@ package-boundary gates, added before that task executed.
   drifted, or symlinked copies.
 - `cargo build --workspace`, `cargo test --workspace`, `cargo deny check`, and
   `cargo machete` passed after centralization. Operational Task 4's full
-  `make ci` also passed. Exact package lists, diff hashes, commands, caveats,
-  and the independent no-finding verdict are recorded in the
+  `make ci` also passed. Exact package lists, diff hashes, commands, and
+  caveats are recorded in the
   [Operational Task 4 report](../../../.superpowers/sdd/operational-task-4-report.md).
+
+## 2026-07-22 review-evidence amendment
+
+The durable slice-review verdict is recorded in the parent operational item's
+[Slice review evidence](../ongoing/phase-2a-operational-closure.md#slice-review-evidence-2026-07-22),
+with the updated local Task 4 report retaining the detailed command evidence.
+The exact verdict is: **Spec: Faithful. Quality: Approved — 0 findings.** This
+slice verdict supports the checked legacy ACs but does not check the parent
+operational ACs or satisfy Task 6's integrated review.
 
 ## Spec-fidelity statement
 

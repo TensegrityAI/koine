@@ -33,7 +33,9 @@
   A fresh isolated target fails with the pre-change build and an invalid
   `PROTOC`; after selecting exact `protoc-bin-vendored` 3.2.0 directly, a
   second fresh target builds with the same poisoned environment. AC2 remains
-  unchecked until independent review and parent-item closure.
+  unchecked until independent review and parent-item closure. **Historical
+  preparatory wording: slice review is complete; the parent checkbox remains
+  open until Task 6.**
 - Operational Task 4 current evidence is recorded in
   [the image, manifest, and package report](../../../.superpowers/sdd/operational-task-4-report.md).
   The approved Postgres digest now covers Compose and both real test harnesses;
@@ -43,7 +45,9 @@
   normalized internal dependency edges are byte-identical; all crate manifests
   are non-publishable; and the seven implemented package lists contain their
   required sources, assets, `LICENSE`, and `NOTICE`. AC3 and AC4 remain
-  unchecked until independent review and parent-item closure.
+  unchecked until independent review and parent-item closure. **Historical
+  preparatory wording: slice review is complete; the parent checkboxes remain
+  open until Task 6.**
 
 ## Spec-fidelity statement (filled at close)
 
@@ -68,6 +72,22 @@ Operational Tasks 2, 3, and 4 each passed their recorded independent reviews.
   identities remain canonical in the Operational Task 2 and Task 4 reports.
 - Task 5 evidence is recorded in
   [the truth-reconciliation report](../../../.superpowers/sdd/operational-task-5-report.md).
+
+### Slice review evidence (2026-07-22)
+
+- Operational Task 3 (`42a7f3a`), after review of the poisoned-`PROTOC`
+  RED/GREEN proof, dependency graph, workspace gates, and architecture update:
+  **Spec: Faithful. Quality: Approved — 0 findings.** Its earlier “pending
+  independent review” text is historical and superseded by this verdict.
+- Operational Task 4 (implementation and corrections through `36b7646`), after
+  review of the immutable Postgres consumers, byte-identical dependency graph,
+  package boundaries, legal-file integrity, and 73-probe lexer gate:
+  **Spec: Faithful. Quality: Approved — 0 findings.** Its earlier “pending
+  independent review” text is historical and superseded by this verdict.
+
+These are slice verdicts, not the parent DoD review. AC1–AC6 remain unchecked
+until Task 6 supplies the fresh integrated evidence and independent parent
+review.
 
 AC1–AC6 above remain unchecked and this item remains `ongoing`. Task 5 does
 not run or claim Task 6's fresh product exit gate, independent parent review,
