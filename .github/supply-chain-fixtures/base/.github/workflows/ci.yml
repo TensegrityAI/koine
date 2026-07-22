@@ -15,7 +15,7 @@ jobs:
           node-version: "22.23.1"
           package-manager-cache: false
       - run: npm ci --ignore-scripts
-      - run: npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
+      - run: npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers" "!.worktrees"
   supply-chain:
     runs-on: ubuntu-24.04
     steps:

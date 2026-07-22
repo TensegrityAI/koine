@@ -16,7 +16,7 @@ const CHECKOUT = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1";
 const SETUP_JAVA = "actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95";
 const SETUP_NODE = "actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444";
 const CARGO_MACHETE_INSTALL = "cargo install cargo-machete --version 0.9.2 --locked";
-const MARKDOWN_COMMAND = 'npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"';
+const MARKDOWN_COMMAND = 'npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers" "!.worktrees"';
 const GITLEAKS_CHECKSUM_LINE = 'echo "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c  gitleaks.tgz" | sha256sum -c';
 const GITLEAKS_EXACT_COMMAND = [
   'curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o gitleaks.tgz',

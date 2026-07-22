@@ -28,7 +28,7 @@ typos:
 # (specs, plans) exempt from lint churn — see docs-style instructions.
 md:
 	npm ci --ignore-scripts
-	npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
+	npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers" "!.worktrees"
 
 # Catches unused *dependencies* (neither clippy nor `cargo deny` do) — see
 # phase-2-carryover-hardening AC3. Not auto-installed (unlike `make tla`'s

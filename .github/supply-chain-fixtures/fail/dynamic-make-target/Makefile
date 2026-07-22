@@ -6,7 +6,7 @@ TLA_ALIAS := tla-alias
 
 md:
 	npm ci --ignore-scripts
-	npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers"
+	npm exec -- markdownlint-cli2 "**/*.md" "!_archive" "!target" "!node_modules" "!docs/superpowers" "!.superpowers" "!.worktrees"
 
 supply-chain:
 	npm ci --ignore-scripts
