@@ -32,3 +32,14 @@ exists yet.
   Postgres, gRPC, product, residue, package, and supply-chain evidence plus an
   independent dual-verdict review with no attributable findings. Phase 2B
   planning is next but not started; phase 2B implementation is not authorized.
+- 2026-07-23 — Post-hardening polish (independent multi-agent re-review of the
+  51-commit hardening batch): all four domains verdicted sound/truthful, no
+  Critical/Important defects in the merged code. Follow-ups applied: presence
+  drop-counter + de-flaked e2e; listener-reconnect logging; bounded fence test;
+  supply-chain gate rewritten to a command-position shell tokenizer (closes
+  backtick/quote-splice/backslash-splice/continuation download bypasses),
+  local composite actions forbidden, `publish = false` enforced, `_archive`
+  excluded (73→79 probes); corrected the closure record's uncommitted
+  "durable review" citations; TLA drift-rule attributed to the dispatcher
+  layer. Phase 2B planning still next, still not started, implementation not
+  authorized.

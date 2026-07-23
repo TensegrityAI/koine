@@ -27,6 +27,10 @@ lefthook install                 # git hooks: fmt/typos pre-commit, clippy/test 
 make ci                          # everything CI runs except gitleaks (CI-only)
 ```
 
+`make supply-chain` (part of `make ci`) runs the policy gate on Node, which
+fails closed below the pinned **Node `>=22.23.1`**; install that version (the
+gate rejects older Node rather than run with it). Ring-3 tests need Docker.
+
 ## Pull requests
 
 - Keep PRs scoped to one concern.

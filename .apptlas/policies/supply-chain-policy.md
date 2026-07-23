@@ -9,8 +9,10 @@ pass `make supply-chain` before merge.
 - GitHub Actions use full 40-character commit SHAs from the gate's reviewed
   action/version allowlist. The release comment is part of that allowlist;
   the gate does not claim to derive or cryptographically validate upstream
-  tag-to-commit relationships. Repository-local actions (`./...`) are exempt
-  from the SHA and release-comment form.
+  tag-to-commit relationships. Repository-local composite actions (`uses:
+  ./...`) run their own steps, which the gate does not descend into, so they
+  are forbidden outright rather than exempted; reintroducing one requires
+  teaching the gate to scan `.github/actions/**` with these same rules first.
 - Downloaded executables use a versioned URL and a checked-in SHA-256 digest.
   The digest is checked both when downloading and before every execution.
 - The only approved Cargo installation is exactly
@@ -54,18 +56,27 @@ It requires the exact eleven workspace crate directories under `crates/`:
 `koine-store-memory`, and `koine-store-postgres`. Every first-level entry must
 be a real directory; symlinks and other filesystem objects are rejected
 without being followed. Each directory requires a regular `Cargo.toml`,
-`LICENSE`, and `NOTICE`, and both legal files are compared byte for byte with
-the repository-root originals.
+`LICENSE`, and `NOTICE`; both legal files are compared byte for byte with
+the repository-root originals, and each manifest must set `publish = false`
+so no crate reaches crates.io before the deliberate 2B publication decision.
 It enumerates repository-owned shell scripts from the filesystem while
-excluding only declared generated, internal, and fixture trees. It rejects
-the `-c`/`--command` option of `bash`, `sh`, `zsh`, or `dash`, including short
-option clusters and preceding shell options, instead of attempting to
-interpret nested code. Normal shell script invocation without a command option
-remains allowed. The gate
-rejects every non-allowlisted `curl`, `wget`, `npm`, `npx`, or `cargo install`
-command across workflows, the Makefile, and those scripts. Its executable
-mutation suite uses repository-owned fixtures and runs as part of
-`make supply-chain`.
+excluding only declared generated, internal, fixture, and archived
+(`_archive`) trees. Command detection tokenizes each command line as a shell
+would — resolving quoting, escaping, `\`+newline continuations, and adjacent
+quote/unquote concatenation, and recursing into `$( )` and backtick
+substitutions — and inspects only command position, so `cu""rl`, `cu\rl`,
+backtick, and continuation forms are caught while the same words inside string
+data (`echo "cargo install …"`) are not. It rejects the `-c`/`--command`
+option of `bash`, `sh`, `zsh`, or `dash`, including short option clusters and
+preceding shell options, instead of attempting to interpret nested code.
+Normal shell script invocation without a command option remains allowed. The
+gate rejects every non-allowlisted `curl`, `wget`, `npm`, `npx`, or `cargo
+install` command (including runner-prefixed forms such as `env`, `command`,
+`sudo`, `xargs`, and `rustup run`) across workflows, the Makefile, and those
+scripts. Its executable mutation suite uses repository-owned fixtures and runs
+as part of `make supply-chain`. Residual static-analysis limit: a command
+*name* assembled from an unexpanded shell variable (`FRAGMENT=cur;
+${FRAGMENT}l`) cannot be seen without executing the shell and is out of scope.
 
 ## Residual trust roots
 

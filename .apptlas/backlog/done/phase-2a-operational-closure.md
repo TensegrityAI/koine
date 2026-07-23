@@ -211,9 +211,14 @@ Operational Tasks 2, 3, and 4 each passed their recorded independent reviews.
   Each retains its historical opening requirement, checks template-complete
   current ACs, records exact implementation/package evidence, and states
   `Faithful`.
-- The current semantic supply-chain suite has 73 probes. Older counts and
-  hashes remain only where explicitly labeled historical/superseded; current
-  identities remain canonical in the Operational Task 2 and Task 4 reports.
+- The semantic supply-chain suite had 73 probes at this record's original
+  closure; the 2026-07-23 hardening added 6 (backtick, quote-splice,
+  backslash-splice, `\`+newline continuation downloads, an unscanned local
+  composite action, and a `publish = false` drift), bringing it to 79. The
+  evidence tables above are the historical 73/73 runs and are left as recorded.
+  Older counts and hashes remain only where explicitly labeled
+  historical/superseded; current identities remain canonical in the
+  Operational Task 2 and Task 4 reports.
 - Task 5 evidence (session-local truth-reconciliation report, uncommitted;
   the reconciled state is what this record and the live docs now assert).
 

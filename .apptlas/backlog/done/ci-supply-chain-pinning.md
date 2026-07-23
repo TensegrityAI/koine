@@ -16,7 +16,7 @@
   semantic workflow inspection by `make supply-chain`.
 - [x] AC2: a fail-closed automated gate rejects floating or malformed
   executable inputs rather than trusting textual resemblance — *verify:*
-  `make supply-chain` and its 73 repository-owned probes.
+  `make supply-chain` and its 79 repository-owned probes.
 - [x] AC3: CI remains green with the selected pins and tool identities —
   *verify:* `make ci` after the final supply-chain and package-boundary changes.
 
@@ -47,7 +47,7 @@ checkable statements; they do not replace or broaden its historical intent.
   the semantic checker, its mutation fixtures, exact Node/npm package graph,
   and policy.
 - `make supply-chain` installs the exact lock with lifecycle scripts disabled,
-  runs the checker, and passes all 73 current probes. The current checksums and
+  runs the checker, and passes all 79 current probes. The current checksums and
   the explicitly superseded historical probe counts/hashes live in the
   Operational Task 2 report (session-local, uncommitted)
   rather than being duplicated here.
@@ -56,7 +56,7 @@ checkable statements; they do not replace or broaden its historical intent.
   evidence and independent no-finding verdict are recorded in the
   Operational Task 4 report (session-local, uncommitted).
 - Independent Operational Task 2 review approved spec compliance and quality;
-  the current 73-probe lexer closure is recorded by commits `fc4a651`,
+  the current 79-probe lexer closure is recorded by commits `fc4a651`,
   `883a27e`, and `36b7646`.
 
 ## Spec-fidelity statement
