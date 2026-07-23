@@ -236,9 +236,21 @@ completed with no error and the state counts recorded above.
 
 ## Drift rule
 
-`job.rs`'s transition table and this model ship in the same PR. If a future
-change to `Job::apply`, `Job::lease/start/succeed/fail/expire_lease/cancel`,
-or the retry/attempt-cap logic changes the lease protocol's transitions,
-update `lease_protocol.tla`/`.cfg` in that same change and re-run `make
-tla`. If TLC later finds a counterexample in behavior phase 1 already
-shipped, that's a phase-1 fidelity finding, not a phase-2 regression.
+The lease protocol and this model ship in the same PR. Two layers feed it:
+
+- `crates/koine-domain/src/job.rs` — the event-sourced transitions
+  (`Job::apply`, `Job::lease/start/succeed/fail/expire_lease/cancel`, the
+  retry/attempt-cap logic). Changing any of these changes the modeled
+  states/actions.
+- `crates/koine-store-{memory,postgres}/src/dispatcher.rs` — the
+  dispatcher-level heartbeat/expiry **fencing** (ADR 0016): `extend_lease`'s
+  refusal to renew an already-expired grant and `retire_one`'s re-check of the
+  current deadline under the lock/`FOR UPDATE SKIP LOCKED`. This is ephemeral
+  (non-event-sourced) state that lives only in the dispatcher, and it is what
+  `HeartbeatExpiryFence` guards. Loosening either guard (e.g. `lease_expires_at
+  > $3` → `>=`) is exactly the regression class the invariant exists to catch.
+
+If a future change touches either layer's lease-protocol behavior, update
+`lease_protocol.tla`/`.cfg` in that same change and re-run `make tla`. If TLC
+later finds a counterexample in behavior phase 1 already shipped, that's a
+phase-1 fidelity finding, not a phase-2 regression.

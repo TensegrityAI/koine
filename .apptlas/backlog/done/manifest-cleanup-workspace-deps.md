@@ -27,7 +27,7 @@
 
 ## Dependencies
 
-- [Close phase-2A operational and supply-chain debt](../ongoing/phase-2a-operational-closure.md)
+- [Close phase-2A operational and supply-chain debt](../done/phase-2a-operational-closure.md)
   remains ongoing; this legacy manifest item closes on its own evidence while
   publication and phase 2B stay blocked.
 
@@ -75,12 +75,12 @@ package-boundary gates, added before that task executed.
   `cargo machete` passed after centralization. Operational Task 4's full
   `make ci` also passed. Exact package lists, diff hashes, commands, and
   caveats are recorded in the
-  [Operational Task 4 report](../../../.superpowers/sdd/operational-task-4-report.md).
+  Operational Task 4 report (session-local, uncommitted).
 
 ## 2026-07-22 review-evidence amendment
 
 The durable slice-review verdict is recorded in the parent operational item's
-[Slice review evidence](../ongoing/phase-2a-operational-closure.md#slice-review-evidence-2026-07-22),
+[Slice review evidence](../done/phase-2a-operational-closure.md#slice-review-evidence-2026-07-22),
 with the updated local Task 4 report retaining the detailed command evidence.
 The exact verdict is: **Spec: Faithful. Quality: Approved — 0 findings.** This
 slice verdict supports the checked legacy ACs but does not check the parent

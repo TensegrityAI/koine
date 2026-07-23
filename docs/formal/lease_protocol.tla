@@ -1,9 +1,13 @@
 ---- MODULE lease_protocol ----
 (* Phase 2A: checked model of Koiné's lease/delivery protocol for ONE job.
-   Mirrors koine-domain's Job state machine (job.rs transition table).
-   Scope: lease identity, expiry, late acks, attempt cap, and the
-   retryable/non-retryable fail split (job.rs Job::fail()), explicit time,
-   lease deadlines, and bounded heartbeat renewal. Atomicity note:
+   Mirrors two layers: koine-domain's Job state machine (job.rs transition
+   table) for the event-sourced transitions, and the dispatcher-level
+   heartbeat/expiry fencing (koine-store-{memory,postgres} dispatcher.rs,
+   ADR 0016) for the ephemeral lease-deadline guards. Scope: lease identity,
+   expiry, late acks, attempt cap, and the retryable/non-retryable fail split
+   (job.rs Job::fail()), explicit time, lease deadlines, and bounded heartbeat
+   renewal. Heartbeat renewal and deadline extension are NOT in job.rs — they
+   are dispatcher state per ADR 0016. Atomicity note:
    each action models one database transaction (ADR 0011/0012) — the
    SKIP LOCKED claim is atomic BY CONSTRUCTION here; the implementation's
    obligation is exactly that atomicity. Multi-job/queue ordering is out of
