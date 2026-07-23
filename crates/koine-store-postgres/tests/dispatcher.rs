@@ -397,22 +397,27 @@ async fn locked_expired_row_does_not_beat_earlier_heartbeat() {
     .await;
 
     f.clock.advance(Duration::from_secs(11));
-    assert_eq!(
-        f.dispatcher
-            .retire_next_expired_lease()
-            .await
-            .expect("retire while locked"),
-        None
-    );
+    // Bound the retire calls: if the fence regressed and retirement blocked on
+    // the held row instead of skipping it (SKIP LOCKED), this would hang the
+    // whole binary — a timeout turns that into a fast, legible failure.
+    let retired_while_locked = tokio::time::timeout(
+        Duration::from_secs(5),
+        f.dispatcher.retire_next_expired_lease(),
+    )
+    .await
+    .expect("retire must not block on the locked row (SKIP LOCKED)")
+    .expect("retire while locked");
+    assert_eq!(retired_while_locked, None);
     lock.commit().await.expect("release dispatch row");
     assert!(heartbeat.await.expect("heartbeat task").expect("heartbeat"));
-    assert_eq!(
-        f.dispatcher
-            .retire_next_expired_lease()
-            .await
-            .expect("retire after heartbeat"),
-        None
-    );
+    let retired_after_heartbeat = tokio::time::timeout(
+        Duration::from_secs(5),
+        f.dispatcher.retire_next_expired_lease(),
+    )
+    .await
+    .expect("retire after heartbeat must not hang")
+    .expect("retire after heartbeat");
+    assert_eq!(retired_after_heartbeat, None);
 }
 
 // Ring-3 regression test mirroring `koine-store-memory`'s

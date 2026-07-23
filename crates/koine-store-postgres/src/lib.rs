@@ -6,6 +6,10 @@ use std::time::Duration;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 
+// 16 (up from sqlx's implicit 10) covers the serve loop's steady concurrent
+// consumers — the sweep and relay tickers plus one connection per in-flight
+// RPC handler — with headroom, now that the dispatch listener runs on its own
+// dedicated size-one pool (`PgSignal::connect`) and no longer competes here.
 const DEFAULT_MAX_CONNECTIONS: NonZeroU32 = match NonZeroU32::new(16) {
     Some(value) => value,
     None => unreachable!(),
