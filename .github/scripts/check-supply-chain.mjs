@@ -111,7 +111,13 @@ async function validateCrateLegalFiles(root) {
   }
   for (const entry of entries) {
     const crateRoot = path.join(cratesRoot, entry.name);
-    await readText(path.join(crateRoot, "Cargo.toml"));
+    const manifest = await readText(path.join(crateRoot, "Cargo.toml"));
+    // Every workspace crate must stay non-publishable: a crate silently
+    // dropping `publish = false` could be pushed to crates.io before the
+    // deliberate 2B publication decision. Enforce it, don't just assume it.
+    if (!/^\s*publish\s*=\s*false\s*$/mu.test(manifest)) {
+      fail(`crate manifest must set publish = false: crates/${entry.name}/Cargo.toml`);
+    }
     for (const [name, expected] of canonical) {
       const file = path.join(crateRoot, name);
       const actual = await readText(file);
@@ -416,87 +422,268 @@ function validateImage(image, location) {
   }
 }
 
-function executableShellText(source) {
-  let output = "";
-  let single = false;
-  let double = false;
-  let escaped = false;
-  let substitutionDepth = 0;
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
-    const next = source[index + 1];
-    if (char === "\n") {
-      output += char;
-      if (!single && !double) escaped = false;
-      continue;
+// Parse shell source into a list of simple commands (each an array of resolved
+// words). This defeats quoting/escaping/continuation evasions of command
+// detection: adjacent quoted and unquoted fragments concatenate into one word
+// exactly as a shell would — `cu""rl`, `cu"r"l`, `cu\rl`, and a `\`+newline
+// continuation all resolve to the word `curl` — while a wholly-quoted argument
+// (`echo "cargo install ..."`) stays an argument, never a command. `$( )` and
+// backtick substitutions have their inner text parsed as their own simple
+// commands, so a nested `curl | bash` is still scanned. Detection then looks
+// only at command position, which is both what the shell executes and what
+// avoids false positives on words that merely appear inside string data.
+//
+// Not resolved: variable expansion. `${X}` stays literal, so an env-indirected
+// command *name* (`FRAGMENT=cur; ${FRAGMENT}l`) is a documented residual limit
+// of static analysis — it cannot be seen without executing the shell.
+function parseShellCommands(source) {
+  const commands = [];
+  const subs = [];
+  let current = [];
+  let word = "";
+  let hasWord = false;
+  const length = source.length;
+  const endWord = () => {
+    if (hasWord) {
+      current.push(word);
+      word = "";
+      hasWord = false;
     }
-    if (substitutionDepth > 0) {
-      output += char;
-      if (char === "(" && source[index - 1] !== "\\") substitutionDepth += 1;
-      else if (char === ")" && source[index - 1] !== "\\") substitutionDepth -= 1;
-      continue;
+  };
+  const endCommand = () => {
+    endWord();
+    if (current.length > 0) {
+      commands.push(current);
+      current = [];
     }
-    if (double) {
-      if (!escaped && char === "$" && next === "(") {
-        output += "$(";
-        substitutionDepth = 1;
-        index += 1;
-      } else {
-        output += " ";
-        if (escaped) escaped = false;
-        else if (char === "\\") escaped = true;
-        else if (char === '"') double = false;
+  };
+  // Reads a `$( ... )` region from just after `$(`, balancing nested parens,
+  // parsing the inner command list, returns the next index.
+  const readParen = (from) => {
+    let depth = 1;
+    let inner = "";
+    let index = from;
+    while (index < length && depth > 0) {
+      const char = source[index];
+      if (char === "\\" && index + 1 < length) {
+        inner += char + source[index + 1];
+        index += 2;
+        continue;
       }
+      if (char === "(") depth += 1;
+      else if (char === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          index += 1;
+          break;
+        }
+      }
+      inner += char;
+      index += 1;
+    }
+    subs.push(...parseShellCommands(inner));
+    return index;
+  };
+  // Reads a backtick region from just after the opening backtick.
+  const readBacktick = (from) => {
+    let inner = "";
+    let index = from;
+    while (index < length) {
+      const char = source[index];
+      if (char === "\\" && index + 1 < length) {
+        inner += source[index + 1];
+        index += 2;
+        continue;
+      }
+      if (char === "`") {
+        index += 1;
+        break;
+      }
+      inner += char;
+      index += 1;
+    }
+    subs.push(...parseShellCommands(inner));
+    return index;
+  };
+  let i = 0;
+  while (i < length) {
+    const char = source[i];
+    const next = source[i + 1];
+    if (char === " " || char === "\t") {
+      endWord();
+      i += 1;
       continue;
     }
-    if (single) {
-      output += " ";
-      if (char === "'") single = false;
+    if (char === "\n" || char === "\r") {
+      endCommand();
+      i += 1;
+      continue;
+    }
+    if (char === "\\" && next === "\n") {
+      i += 2;
+      continue;
+    }
+    if (char === "\\" && next === "\r" && source[i + 2] === "\n") {
+      i += 3;
+      continue;
+    }
+    if (char === "\\" && next !== undefined) {
+      word += next;
+      hasWord = true;
+      i += 2;
+      continue;
+    }
+    if (char === "'") {
+      hasWord = true;
+      i += 1;
+      while (i < length && source[i] !== "'") {
+        word += source[i];
+        i += 1;
+      }
+      i += 1;
       continue;
     }
     if (char === '"') {
-      double = true;
-      output += " ";
-    } else if (char === "'") {
-      single = true;
-      output += " ";
-    } else if (char === "#" && (index === 0 || /\s/u.test(source[index - 1]))) {
-      while (index < source.length && source[index] !== "\n") {
-        output += " ";
-        index += 1;
+      hasWord = true;
+      i += 1;
+      while (i < length && source[i] !== '"') {
+        const inner = source[i];
+        if (inner === "\\" && i + 1 < length) {
+          word += source[i + 1];
+          i += 2;
+          continue;
+        }
+        if (inner === "$" && source[i + 1] === "(") {
+          i = readParen(i + 2);
+          continue;
+        }
+        if (inner === "`") {
+          i = readBacktick(i + 1);
+          continue;
+        }
+        word += inner;
+        i += 1;
       }
-      if (index < source.length) output += "\n";
-    } else output += char;
+      i += 1;
+      continue;
+    }
+    if (char === "$" && next === "(") {
+      hasWord = true;
+      i = readParen(i + 2);
+      continue;
+    }
+    if (char === "`") {
+      hasWord = true;
+      i = readBacktick(i + 1);
+      continue;
+    }
+    if (char === "#" && !hasWord) {
+      while (i < length && source[i] !== "\n") i += 1;
+      continue;
+    }
+    if (char === ";" || char === "&" || char === "|" || char === "(" || char === ")") {
+      endCommand();
+      i += 1;
+      continue;
+    }
+    word += char;
+    hasWord = true;
+    i += 1;
   }
-  return output;
+  endCommand();
+  return [...commands, ...subs];
+}
+
+const COMMAND_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/u;
+// Prefixes that run the command that follows them (so the effective command is
+// further along): `command curl`, `env X=y curl`, `sudo curl`, `xargs curl`…
+const COMMAND_RUNNERS = new Set([
+  "env", "command", "sudo", "nohup", "nice", "xargs", "timeout", "setsid",
+  "stdbuf", "time", "exec", "builtin", "then", "do", "!",
+]);
+
+function basename(token) {
+  return token.split("/").at(-1);
+}
+
+// From a simple command's words, strip leading `VAR=value` assignments and
+// runner prefixes to reach the effective command name and its arguments.
+function effectiveWords(words) {
+  let index = 0;
+  while (index < words.length && COMMAND_ASSIGNMENT.test(words[index])) index += 1;
+  for (;;) {
+    if (index >= words.length) break;
+    const head = basename(words[index]);
+    // `rustup run <toolchain> <cmd...>` executes <cmd> — treat it as a runner.
+    if (head === "rustup" && basename(words[index + 1] ?? "") === "run") {
+      index += 2;
+      while (index < words.length && words[index].startsWith("-")) index += 1;
+      if (index < words.length) index += 1;
+      continue;
+    }
+    if (!COMMAND_RUNNERS.has(head)) break;
+    index += 1;
+    while (index < words.length && words[index].startsWith("-")) index += 1;
+    if (head === "env") {
+      while (index < words.length && COMMAND_ASSIGNMENT.test(words[index])) index += 1;
+    }
+    if (head === "timeout" && index < words.length && !words[index].startsWith("-")) index += 1;
+  }
+  return words.slice(index);
+}
+
+function effectiveCommands(source) {
+  return parseShellCommands(source)
+    .map(effectiveWords)
+    .filter((words) => words.length > 0);
 }
 
 function containsCommand(source, command) {
-  const expression = new RegExp(`(^|[\\s;&|($])${command}(?=\\s|$)`, "mu");
-  return expression.test(executableShellText(source));
+  return effectiveCommands(source).some((words) => basename(words[0]) === command);
 }
 
 function containsCargoInstall(source) {
-  const expression = /(^|[\s;&|($])(?:\/?[A-Za-z0-9._-]+\/)*cargo(?:\s+\+[A-Za-z0-9._-]+)?\s+install(?=\s|$)/mu;
-  return expression.test(executableShellText(source));
+  return effectiveCommands(source).some((words) => {
+    if (basename(words[0]) !== "cargo") return false;
+    let index = 1;
+    if (words[index]?.startsWith("+")) index += 1;
+    return words[index] === "install";
+  });
 }
 
 function containsShellIndirection(source) {
-  const segments = executableShellText(source).split(/[\n;&|()]+/u);
   const shells = new Set(["bash", "sh", "zsh", "dash"]);
-  for (const segment of segments) {
-    const tokens = segment.trim().split(/\s+/u).filter(Boolean);
-    for (const [index, token] of tokens.entries()) {
-      const basename = token.split("/").at(-1);
-      if (!shells.has(basename)) continue;
-      for (const option of tokens.slice(index + 1)) {
-        if (option === "--") break;
-        if (!option.startsWith("-") && !option.startsWith("+")) break;
-        if (option === "--command" || /^-[^-]*c/u.test(option)) return true;
-      }
+  return effectiveCommands(source).some((words) => {
+    if (!shells.has(basename(words[0]))) return false;
+    for (const option of words.slice(1)) {
+      if (option === "--") break;
+      if (!option.startsWith("-") && !option.startsWith("+")) break;
+      if (option === "--command" || /^-[^-]*c/u.test(option)) return true;
     }
+    return false;
+  });
+}
+
+// Yields logical lines for line-oriented scanners: physical lines ending in an
+// odd number of backslashes are continuations and are joined with the next
+// line (numbered by the first physical line), so a `\`+newline split of a
+// command — `cu\`<newline>`rl` — cannot hide it from a per-line scan.
+function* logicalLines(text) {
+  const physical = text.split(/\r?\n/u);
+  let buffer = "";
+  let startLine = 1;
+  for (let index = 0; index < physical.length; index += 1) {
+    const line = physical[index];
+    if (buffer === "") startLine = index + 1;
+    const trailing = line.match(/(\\*)$/u)[1].length;
+    if (trailing % 2 === 1) {
+      buffer += line.slice(0, -1);
+      continue;
+    }
+    yield { value: buffer + line, number: startLine };
+    buffer = "";
   }
-  return false;
+  if (buffer !== "") yield { value: buffer, number: startLine };
 }
 
 function validateShellCommands(command, location) {
@@ -551,7 +738,14 @@ function validateWorkflow(document, text, relative, state) {
       if (step.uses !== undefined) {
         if (typeof step.uses !== "string") fail(`workflow action must be a string: ${stepLocation}`);
         semanticActions.push(step.uses);
-        if (!step.uses.startsWith("./") && !APPROVED_ACTIONS.has(step.uses)) {
+        // Local composite actions (`uses: ./...`) run their own steps, which
+        // this gate does not descend into — so they are forbidden outright
+        // rather than silently exempted. Reintroducing one requires teaching
+        // the gate to scan `.github/actions/**` with these same rules first.
+        if (step.uses.startsWith("./")) {
+          fail(`local composite action is unscanned and forbidden: ${stepLocation}: ${step.uses}`);
+        }
+        if (!APPROVED_ACTIONS.has(step.uses)) {
           fail(`floating or unapproved GitHub Action: ${stepLocation}: ${step.uses}`);
         }
         if (step.uses === SETUP_NODE && !(relative === ".github/workflows/ci.yml" && ["markdownlint", "supply-chain"].includes(jobName))) {
@@ -678,14 +872,14 @@ function validateMakefile(text) {
   ];
   if (JSON.stringify(supplyRecipes) !== JSON.stringify(expectedSupply)) fail("Makefile supply-chain commands drifted");
 
-  for (const [index, rawLine] of lines.entries()) {
-    const line = rawLine.trim();
+  for (const { value, number } of logicalLines(text)) {
+    const line = value.trim();
     if (!line) continue;
-    validateShellCommands(line, `Makefile:${index + 1}`);
+    validateShellCommands(line, `Makefile:${number}`);
     if (containsCommand(line, "curl") || containsCommand(line, "wget")) {
-      if (line !== expectedDownload[1]) fail(`unapproved executable download: Makefile:${index + 1}`);
+      if (line !== expectedDownload[1]) fail(`unapproved executable download: Makefile:${number}`);
     }
-    validateNpmCommand(line, `Makefile:${index + 1}`, ["npm ci --ignore-scripts", MARKDOWN_COMMAND]);
+    validateNpmCommand(line, `Makefile:${number}`, ["npm ci --ignore-scripts", MARKDOWN_COMMAND]);
   }
 }
 
@@ -726,7 +920,10 @@ function validatePackage(packageData, lockData) {
 }
 
 async function validateShellScripts(root) {
-  const ignoredDirectoryNames = new Set([".git", ".worktrees", "target", "node_modules", ".superpowers"]);
+  // CI checkouts only contain tracked files; these dirs are never present
+  // there. `_archive` (unrelated, git-ignored legacy) is excluded too so a
+  // stray local script in it can't break `make supply-chain` for a developer.
+  const ignoredDirectoryNames = new Set([".git", ".worktrees", "target", "node_modules", ".superpowers", "_archive"]);
   const fixtures = path.join(root, ".github", "supply-chain-fixtures");
   const skip = (candidate, entry) => entry.isDirectory()
     && (ignoredDirectoryNames.has(entry.name) || candidate === fixtures);
@@ -734,12 +931,12 @@ async function validateShellScripts(root) {
   for (const file of scripts) {
     const text = await readText(file);
     const relative = path.relative(root, file).split(path.sep).join("/");
-    for (const [index, rawLine] of text.split(/\r?\n/u).entries()) {
-      const line = rawLine.trim();
+    for (const { value, number } of logicalLines(text)) {
+      const line = value.trim();
       if (!line) continue;
-      validateShellCommands(line, `${relative}:${index + 1}`);
-      if (containsCommand(line, "curl") || containsCommand(line, "wget")) fail(`unapproved executable download: ${relative}:${index + 1}`);
-      validateNpmCommand(line, `${relative}:${index + 1}`, []);
+      validateShellCommands(line, `${relative}:${number}`);
+      if (containsCommand(line, "curl") || containsCommand(line, "wget")) fail(`unapproved executable download: ${relative}:${number}`);
+      validateNpmCommand(line, `${relative}:${number}`, []);
     }
   }
 }

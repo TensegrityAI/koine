@@ -351,35 +351,13 @@ async fn presence_rows_appear() {
     // its poll loop (see `service.rs`), so merely opening a fetch stream —
     // even against an empty queue — is enough to register the worker; no
     // job needs to exist for this assertion.
-    let _stream_a = client
-        .fetch(authed(
-            "worker-a",
-            v1::FetchRequest {
-                queue: queue.to_string(),
-                lease_ttl_ms: 30_000,
-            },
-        ))
-        .await
-        .expect("fetch stream opens")
-        .into_inner();
-    let _stream_b = client
-        .fetch(authed(
-            "worker-b",
-            v1::FetchRequest {
-                queue: queue.to_string(),
-                lease_ttl_ms: 30_000,
-            },
-        ))
-        .await
-        .expect("fetch stream opens")
-        .into_inner();
-
-    let seen_a = worker_last_seen(&pool, "worker-a")
-        .await
-        .expect("worker-a has a presence row");
-    let seen_b = worker_last_seen(&pool, "worker-b")
-        .await
-        .expect("worker-b has a presence row");
+    // Presence is best-effort (ADR 0015): a write can be dropped if the pool
+    // is momentarily saturated or the 100ms budget is overrun under load, so
+    // one fetch does not guarantee a row. Re-drive fetch and poll until the
+    // row appears (it will, once the system is not starved) — asserting on a
+    // single attempt makes this test flaky under CI contention.
+    let seen_a = await_presence(&mut client, &pool, "worker-a", &queue).await;
+    let seen_b = await_presence(&mut client, &pool, "worker-b", &queue).await;
 
     let now = Utc::now();
     for (worker, last_seen) in [("worker-a", seen_a), ("worker-b", seen_b)] {
@@ -389,4 +367,34 @@ async fn presence_rows_appear() {
             "{worker}'s last_seen must be recent (within 60s), age={age}s"
         );
     }
+}
+
+/// Re-drives `fetch` for `worker` and polls the `workers` table until a
+/// presence row appears, up to ~5s. Presence is best-effort (ADR 0015), so a
+/// single fetch may drop its write under load; retrying matches the contract
+/// (the row appears once the system is not starved) and de-flakes the test.
+async fn await_presence(
+    client: &mut WorkerServiceClient<Channel>,
+    pool: &PgPool,
+    worker: &str,
+    queue: &QueueName,
+) -> DateTime<Utc> {
+    for _ in 0..25 {
+        let _stream = client
+            .fetch(authed(
+                worker,
+                v1::FetchRequest {
+                    queue: queue.to_string(),
+                    lease_ttl_ms: 30_000,
+                },
+            ))
+            .await
+            .expect("fetch stream opens")
+            .into_inner();
+        if let Some(last_seen) = worker_last_seen(pool, worker).await {
+            return last_seen;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    panic!("{worker} never got a presence row within the retry budget");
 }

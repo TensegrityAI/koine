@@ -1,3 +1,4 @@
 [package]
 name = "koine-domain"
 version = "0.0.0"
+publish = false

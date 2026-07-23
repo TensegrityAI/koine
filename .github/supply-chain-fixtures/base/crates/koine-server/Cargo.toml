@@ -1,3 +1,4 @@
 [package]
 name = "koine-server"
 version = "0.0.0"
+publish = false

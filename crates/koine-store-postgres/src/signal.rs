@@ -59,12 +59,29 @@ impl PgSignal {
         let (notifications, _) = broadcast::channel(NOTIFICATION_BUFFER);
         let fanout = notifications.clone();
         let listener_task = tokio::spawn(async move {
+            // Log the health transitions, not every backoff tick: one line when
+            // the listener starts failing (push wakeups degrade to idle-poll —
+            // correct, but the operator should know) and one when it recovers.
+            let mut degraded = false;
             loop {
                 match listener.recv().await {
                     Ok(notification) => {
+                        if degraded {
+                            eprintln!("signal: dispatch listener reconnected");
+                            degraded = false;
+                        }
                         let _ = fanout.send(notification.payload().to_string());
                     }
-                    Err(_) => tokio::time::sleep(RECONNECT_BACKOFF).await,
+                    Err(error) => {
+                        if !degraded {
+                            eprintln!(
+                                "signal: dispatch listener lost ({error}); \
+                                 wakeups degrade to idle-poll until it reconnects"
+                            );
+                            degraded = true;
+                        }
+                        tokio::time::sleep(RECONNECT_BACKOFF).await;
+                    }
                 }
             }
         });

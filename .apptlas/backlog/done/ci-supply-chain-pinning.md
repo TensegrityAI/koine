@@ -16,13 +16,13 @@
   semantic workflow inspection by `make supply-chain`.
 - [x] AC2: a fail-closed automated gate rejects floating or malformed
   executable inputs rather than trusting textual resemblance — *verify:*
-  `make supply-chain` and its 73 repository-owned probes.
+  `make supply-chain` and its 79 repository-owned probes.
 - [x] AC3: CI remains green with the selected pins and tool identities —
   *verify:* `make ci` after the final supply-chain and package-boundary changes.
 
 ## Dependencies
 
-- [Close phase-2A operational and supply-chain debt](../ongoing/phase-2a-operational-closure.md)
+- [Close phase-2A operational and supply-chain debt](../done/phase-2a-operational-closure.md)
   remains ongoing; this legacy decision can close without closing its parent
   or unblocking phase 2B.
 
@@ -47,16 +47,16 @@ checkable statements; they do not replace or broaden its historical intent.
   the semantic checker, its mutation fixtures, exact Node/npm package graph,
   and policy.
 - `make supply-chain` installs the exact lock with lifecycle scripts disabled,
-  runs the checker, and passes all 73 current probes. The current checksums and
+  runs the checker, and passes all 79 current probes. The current checksums and
   the explicitly superseded historical probe counts/hashes live in the
-  [Operational Task 2 report](../../../.superpowers/sdd/operational-task-2-report.md)
+  Operational Task 2 report (session-local, uncommitted)
   rather than being duplicated here.
 - Operational Task 4's final `make ci` passed after the last checker,
   immutable-image, manifest, and package-boundary changes. The exact command
   evidence and independent no-finding verdict are recorded in the
-  [Operational Task 4 report](../../../.superpowers/sdd/operational-task-4-report.md).
+  Operational Task 4 report (session-local, uncommitted).
 - Independent Operational Task 2 review approved spec compliance and quality;
-  the current 73-probe lexer closure is recorded by commits `fc4a651`,
+  the current 79-probe lexer closure is recorded by commits `fc4a651`,
   `883a27e`, and `36b7646`.
 
 ## Spec-fidelity statement

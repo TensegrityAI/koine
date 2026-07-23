@@ -24,20 +24,28 @@
 
 ## Evidence (filled at close)
 
-- Operational Task 2 current evidence is recorded in
-  [the supply-chain report](../../../.superpowers/sdd/operational-task-2-report.md).
+> Evidence-durability note: the per-task working reports referenced below lived
+> in the session-local, git-ignored `.superpowers/sdd/` scratch area and were
+> not committed, so they are not durable artifacts a later auditor can open.
+> The substantive evidence each carried is transcribed inline in this record
+> (command tables, verdicts) and is reproducible via the listed `make` targets
+> and tests. References below are named for provenance, not as live links.
+
+- Operational Task 2 evidence (session-local supply-chain report, uncommitted;
+  transcribed inline below and reproducible via `make supply-chain`).
   AC1 is implemented and independently reviewable, but remains unchecked until
   the parent operational item completes all acceptance criteria and DoD gates.
-- Operational Task 3 current evidence is recorded in
-  [the hermetic protobuf report](../../../.superpowers/sdd/operational-task-3-report.md).
+- Operational Task 3 evidence (session-local hermetic-protobuf report,
+  uncommitted; transcribed inline and reproducible via `cargo build -p
+  koine-proto` with a poisoned `PROTOC`).
   A fresh isolated target fails with the pre-change build and an invalid
   `PROTOC`; after selecting exact `protoc-bin-vendored` 3.2.0 directly, a
   second fresh target builds with the same poisoned environment. AC2 remains
   unchecked until independent review and parent-item closure. **Historical
   preparatory wording: slice review is complete; the parent checkbox remains
   open until Task 6.**
-- Operational Task 4 current evidence is recorded in
-  [the image, manifest, and package report](../../../.superpowers/sdd/operational-task-4-report.md).
+- Operational Task 4 evidence (session-local image/manifest/package report,
+  uncommitted; transcribed inline below).
   The approved Postgres digest now covers Compose and both real test harnesses;
   the semantic gate independently enforces exactly one approved consumer in
   each versioned Rust helper; and its crate scan requires the exact eleven real
@@ -52,9 +60,11 @@
 ### Operational Task 6 first-wave evidence (historical pre-review snapshot)
 
 This evidence was collected on `feat/phase-2a-hardening` at `d207b9e`, before
-the Task 6 evidence commit. Raw command output and per-command metadata are in
-`/tmp/koine-operational-task-6.6Ciq9i`; the ignored
-`.superpowers/sdd/operational-task-6-report.md` records the exhaustive ledger.
+the Task 6 evidence commit. Raw command output and per-command metadata lived
+in a session-local temp dir and the git-ignored
+`.superpowers/sdd/operational-task-6-report.md`; neither was committed. The
+durable ledger is the transcribed command table that follows, reproducible via
+the same commands.
 
 The exact automated gate sequence produced:
 
@@ -116,9 +126,10 @@ that pending status, not the recorded command results.
 
 The independent Step 4 reviewer read the approved designs, ADRs, policies, all
 three hardening plans, cumulative 45-commit diff, task evidence, and the
-high-risk implementation surfaces. The
-[durable review](../../../.superpowers/sdd/phase-2a-final-review.md) records
-the dual verdict against reviewed HEAD `3b0152e`.
+high-risk implementation surfaces. Its working notes were session-local
+scratch (git-ignored `.superpowers/sdd/`, not committed); the reviewer's dual
+verdict against reviewed HEAD `3b0152e` is transcribed immediately below, which
+is the durable record of it.
 
 Spec compliance: ✅ Faithful to the approved Phase 2A zero-debt hardening design and ADR-0016/ADR-0017 as amended.
 
@@ -200,11 +211,16 @@ Operational Tasks 2, 3, and 4 each passed their recorded independent reviews.
   Each retains its historical opening requirement, checks template-complete
   current ACs, records exact implementation/package evidence, and states
   `Faithful`.
-- The current semantic supply-chain suite has 73 probes. Older counts and
-  hashes remain only where explicitly labeled historical/superseded; current
-  identities remain canonical in the Operational Task 2 and Task 4 reports.
-- Task 5 evidence is recorded in
-  [the truth-reconciliation report](../../../.superpowers/sdd/operational-task-5-report.md).
+- The semantic supply-chain suite had 73 probes at this record's original
+  closure; the 2026-07-23 hardening added 6 (backtick, quote-splice,
+  backslash-splice, `\`+newline continuation downloads, an unscanned local
+  composite action, and a `publish = false` drift), bringing it to 79. The
+  evidence tables above are the historical 73/73 runs and are left as recorded.
+  Older counts and hashes remain only where explicitly labeled
+  historical/superseded; current identities remain canonical in the
+  Operational Task 2 and Task 4 reports.
+- Task 5 evidence (session-local truth-reconciliation report, uncommitted;
+  the reconciled state is what this record and the live docs now assert).
 
 ### Slice review evidence (2026-07-22)
 
