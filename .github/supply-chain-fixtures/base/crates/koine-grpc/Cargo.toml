@@ -1,3 +1,4 @@
 [package]
 name = "koine-grpc"
 version = "0.0.0"
+publish = false

@@ -1,4 +1,3 @@
 [package]
 name = "koine-cli"
 version = "0.0.0"
-publish = false

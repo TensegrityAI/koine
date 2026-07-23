@@ -1,0 +1,4 @@
+jobs:
+  local:
+    runs-on: ubuntu-24.04
+    steps: [{ uses: ./.github/actions/pwn }]
