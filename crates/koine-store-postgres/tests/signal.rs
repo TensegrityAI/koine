@@ -193,12 +193,21 @@ async fn presence_skips_when_pool_is_saturated() {
     let f = fx_with_pool_size(NonZeroU32::new(1).expect("non-zero pool size")).await;
     let held = f.pool.acquire().await.expect("hold only connection");
 
+    assert_eq!(f.presence.dropped_writes(), 0);
     tokio::time::timeout(
         Duration::from_millis(250),
         f.presence.seen(&f.worker, Some(&f.queue)),
     )
     .await
     .expect("best-effort presence must not wait for pool timeout");
+
+    // The skip is otherwise silent (ADR 0015); the drop counter makes it
+    // observable rather than only visible as a later stale `last_seen`.
+    assert_eq!(
+        f.presence.dropped_writes(),
+        1,
+        "a saturated-pool skip must be counted as a dropped write"
+    );
 
     drop(held);
 }
