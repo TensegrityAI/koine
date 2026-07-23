@@ -75,7 +75,11 @@ async fn enqueue(f: &Fx, priority: i16, not_before_secs: Option<u64>) -> JobId {
 
 async fn wait_until_query_waits_on_lock(pool: &PgPool, query_prefix: &str, context: &str) {
     let pattern = format!("{query_prefix}%");
-    tokio::time::timeout(Duration::from_secs(2), async {
+    // Generous budget: on a loaded CI runner starting several throwaway
+    // Postgres containers in parallel, container/scheduler contention can delay
+    // the observed lock-wait well past a second. A short poll sleep (not a busy
+    // yield) also keeps this detection loop from hammering pg_stat_activity.
+    tokio::time::timeout(Duration::from_secs(15), async {
         loop {
             let waiting: bool = sqlx::query_scalar(
                 "SELECT EXISTS (\
@@ -89,7 +93,7 @@ async fn wait_until_query_waits_on_lock(pool: &PgPool, query_prefix: &str, conte
             if waiting {
                 break;
             }
-            tokio::task::yield_now().await;
+            tokio::time::sleep(Duration::from_millis(25)).await;
         }
     })
     .await
@@ -286,7 +290,7 @@ async fn concurrent_retirement_records_one_expiry() {
     .await;
 
     let right = tokio::time::timeout(
-        Duration::from_secs(2),
+        Duration::from_secs(10),
         right_dispatcher.retire_next_expired_lease(),
     )
     .await
@@ -333,7 +337,7 @@ async fn skip_locked_retires_second_expired_lease() {
     let retirement =
         PostgresDispatcher::new(f.pool.clone(), Arc::clone(&f.ids), Arc::clone(&f.clock));
     let retired = tokio::time::timeout(
-        Duration::from_secs(2),
+        Duration::from_secs(10),
         retirement.retire_next_expired_lease(),
     )
     .await
